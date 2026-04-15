@@ -190,4 +190,22 @@ func TestResolve_DevStackFixture(t *testing.T) {
 	if kubectl.Formula != "kubernetes-cli" {
 		t.Errorf("kubectl.Formula = %q, want kubernetes-cli", kubectl.Formula)
 	}
+	// Docker Compose is installed via the `shell` escape hatch (plugin manual-install),
+	// not the brew formula. Guard against regressions to the brew path.
+	var compose *config.Step
+	for i := range plan.Steps {
+		if plan.Steps[i].Name == "Docker Compose (CLI plugin)" {
+			compose = &plan.Steps[i]
+			break
+		}
+	}
+	if compose == nil {
+		t.Fatal("did not find step named 'Docker Compose (CLI plugin)' in dev-stack")
+	}
+	if compose.Type != "shell" {
+		t.Errorf("compose.Type = %q, want shell", compose.Type)
+	}
+	if compose.Install == "" {
+		t.Error("compose.Install is empty")
+	}
 }
