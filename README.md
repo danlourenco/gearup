@@ -2,15 +2,15 @@
 
 Opinionated, open-source macOS developer-machine bootstrap CLI.
 
-Status: Phase 1 (tracer bullet) — in development.
+Status: Phase 2 — in development. Supports `brew`, `curl-pipe-sh`, and `shell` step types on macOS.
 
 See `docs/superpowers/specs/2026-04-15-gearup-design.md` for the design.
 
-## Phase 1 usage
+## Usage
 
-    gearup run --profile ./examples/profiles/example.yaml
+    gearup run --profile ./examples/profiles/dev-stack.yaml
 
-Requires macOS with Homebrew installed. Only the `brew` step type is supported in Phase 1.
+Requires macOS. If Homebrew is not installed, the profile's first step installs it via the official installer. Subsequent brew steps in the same run require `brew` on PATH — if Homebrew was just installed, open a new shell and re-run so PATH picks up `/opt/homebrew/bin` (or `/usr/local/bin` on Intel).
 
 ## Phase 1 verification
 
