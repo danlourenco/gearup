@@ -1,0 +1,12 @@
+version: 1
+name: "Phase 1 Example"
+description: "Minimal profile proving the end-to-end gearup pipeline"
+
+platform:
+  os: [darwin]
+
+recipe_sources:
+  - path: ../recipes
+
+includes:
+  - recipe: example-recipe

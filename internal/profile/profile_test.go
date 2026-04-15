@@ -133,3 +133,20 @@ includes:
 		t.Errorf("Steps = %+v", plan.Steps)
 	}
 }
+
+func TestResolve_ExampleFixture(t *testing.T) {
+	p, err := profile.LoadProfile("../../examples/profiles/example.yaml")
+	if err != nil {
+		t.Fatalf("LoadProfile: %v", err)
+	}
+	plan, err := profile.Resolve(p, "../../examples/profiles")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if len(plan.Steps) != 1 {
+		t.Fatalf("Steps len = %d, want 1 (%+v)", len(plan.Steps), plan.Steps)
+	}
+	if plan.Steps[0].Type != "brew" || plan.Steps[0].Formula != "jq" {
+		t.Errorf("Steps[0] = %+v", plan.Steps[0])
+	}
+}

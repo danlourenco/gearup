@@ -1,0 +1,8 @@
+version: 1
+name: example-recipe
+description: "Phase 1 tracer-bullet example: installs jq via brew"
+
+steps:
+  - name: "jq (via brew)"
+    type: brew
+    formula: jq
