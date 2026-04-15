@@ -67,3 +67,23 @@ func TestBrew_InstallFailure(t *testing.T) {
 		t.Error("want error for failed install, got nil")
 	}
 }
+
+func TestBrew_CheckUsesOverrideWhenSet(t *testing.T) {
+	f := gearexec.NewFakeRunner()
+	// The default check `brew list --formula git` would be called absent an override.
+	// With the override set, the runner should be called with the override command instead.
+	f.On("command -v git").Return(gearexec.Result{ExitCode: 0}, nil)
+
+	inst := &brew.Installer{Runner: f}
+	step := config.Step{Name: "Git", Type: "brew", Formula: "git", Check: "command -v git"}
+	ok, err := inst.Check(context.Background(), step)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Error("installed = false, want true")
+	}
+	if got := f.Calls(); len(got) != 1 || got[0] != "command -v git" {
+		t.Errorf("Calls = %v, want single call to 'command -v git' (not default)", got)
+	}
+}

@@ -8,21 +8,29 @@ steps:
     url: https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh
     check: command -v brew
 
+  # Git is commonly pre-installed from Xcode Command Line Tools.
+  # The availability check avoids installing a duplicate via brew.
   - name: Git
     type: brew
     formula: git
+    check: command -v git
 
   - name: OpenJDK 21
     type: brew
     formula: openjdk@21
 
+  # Docker CLI is commonly pre-installed from Docker Desktop.
   - name: Docker CLI
     type: brew
     formula: docker
+    check: command -v docker
 
+  # Docker Desktop bundles Compose as a plugin (docker compose).
+  # brew's docker-compose formula is a convenience path, not canonical.
   - name: Docker Compose
     type: brew
     formula: docker-compose
+    check: command -v docker-compose
 
   - name: Colima
     type: brew
@@ -36,9 +44,11 @@ steps:
     type: brew
     formula: aws-iam-authenticator
 
+  # Canonical brew formula is kubernetes-cli; `kubectl` is an install-time alias
+  # that breaks idempotency for `brew list --formula`. Use the canonical name.
   - name: kubectl
     type: brew
-    formula: kubectl
+    formula: kubernetes-cli
 
   - name: jq
     type: brew

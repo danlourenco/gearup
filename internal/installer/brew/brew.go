@@ -14,12 +14,18 @@ type Installer struct {
 	Runner gearexec.Runner
 }
 
-// Check runs `brew list --formula <name>`; exit 0 means installed.
+// Check runs the step's Check command if set, otherwise `brew list --formula <name>`.
+// Exit 0 means installed. Recipes can override the default check to handle
+// tools that may already be installed from other sources (e.g. `check: command -v git`)
+// or to work around brew-alias formula names.
 func (i *Installer) Check(ctx context.Context, step config.Step) (bool, error) {
 	if step.Formula == "" {
 		return false, fmt.Errorf("brew step %q missing formula", step.Name)
 	}
-	cmd := fmt.Sprintf("brew list --formula %s", step.Formula)
+	cmd := step.Check
+	if cmd == "" {
+		cmd = fmt.Sprintf("brew list --formula %s", step.Formula)
+	}
 	res, err := i.Runner.Run(ctx, cmd)
 	if err != nil {
 		return false, err

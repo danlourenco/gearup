@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"gearup/internal/config"
 	"gearup/internal/profile"
 )
 
@@ -173,5 +174,20 @@ func TestResolve_DevStackFixture(t *testing.T) {
 	// middle: OpenJDK 21 via brew
 	if plan.Steps[2].Type != "brew" || plan.Steps[2].Formula != "openjdk@21" {
 		t.Errorf("Steps[2] = %+v, want openjdk@21 brew", plan.Steps[2])
+	}
+	// kubectl uses the canonical `kubernetes-cli` formula to avoid brew-alias idempotency issues.
+	// Find it by name and assert the formula.
+	var kubectl *config.Step
+	for i := range plan.Steps {
+		if plan.Steps[i].Name == "kubectl" {
+			kubectl = &plan.Steps[i]
+			break
+		}
+	}
+	if kubectl == nil {
+		t.Fatal("did not find step named 'kubectl' in dev-stack")
+	}
+	if kubectl.Formula != "kubernetes-cli" {
+		t.Errorf("kubectl.Formula = %q, want kubernetes-cli", kubectl.Formula)
 	}
 }
