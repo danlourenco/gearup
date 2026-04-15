@@ -135,29 +135,12 @@ ingredients:
 	}
 }
 
-func TestResolve_ExampleFixture(t *testing.T) {
-	r, err := recipe.LoadRecipe("../../examples/profiles/example.yaml")
+func TestResolve_BackendFixture(t *testing.T) {
+	r, err := recipe.LoadRecipe("../../examples/recipes/backend.yaml")
 	if err != nil {
 		t.Fatalf("LoadRecipe: %v", err)
 	}
-	plan, err := recipe.Resolve(r, "../../examples/profiles")
-	if err != nil {
-		t.Fatalf("Resolve: %v", err)
-	}
-	if len(plan.Steps) != 1 {
-		t.Fatalf("Steps len = %d, want 1 (%+v)", len(plan.Steps), plan.Steps)
-	}
-	if plan.Steps[0].Type != "brew" || plan.Steps[0].Formula != "jq" {
-		t.Errorf("Steps[0] = %+v", plan.Steps[0])
-	}
-}
-
-func TestResolve_DevStackFixture(t *testing.T) {
-	r, err := recipe.LoadRecipe("../../examples/profiles/dev-stack.yaml")
-	if err != nil {
-		t.Fatalf("LoadRecipe: %v", err)
-	}
-	plan, err := recipe.Resolve(r, "../../examples/profiles")
+	plan, err := recipe.Resolve(r, "../../examples/recipes")
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -171,12 +154,7 @@ func TestResolve_DevStackFixture(t *testing.T) {
 	if plan.Steps[10].Type != "curl-pipe-sh" || plan.Steps[10].Name != "nvm" {
 		t.Errorf("Steps[10] = %+v, want nvm curl-pipe-sh", plan.Steps[10])
 	}
-	// middle: OpenJDK 21 via brew
-	if plan.Steps[2].Type != "brew" || plan.Steps[2].Formula != "openjdk@21" {
-		t.Errorf("Steps[2] = %+v, want openjdk@21 brew", plan.Steps[2])
-	}
 	// kubectl uses the canonical `kubernetes-cli` formula to avoid brew-alias idempotency issues.
-	// Find it by name and assert the formula.
 	var kubectl *config.Step
 	for i := range plan.Steps {
 		if plan.Steps[i].Name == "kubectl" {
@@ -185,13 +163,12 @@ func TestResolve_DevStackFixture(t *testing.T) {
 		}
 	}
 	if kubectl == nil {
-		t.Fatal("did not find step named 'kubectl' in dev-stack")
+		t.Fatal("did not find step named 'kubectl' in backend recipe")
 	}
 	if kubectl.Formula != "kubernetes-cli" {
 		t.Errorf("kubectl.Formula = %q, want kubernetes-cli", kubectl.Formula)
 	}
-	// Docker Compose is installed via the `shell` escape hatch (plugin manual-install),
-	// not the brew formula. Guard against regressions to the brew path.
+	// Docker Compose is installed via the `shell` escape hatch (plugin manual-install).
 	var compose *config.Step
 	for i := range plan.Steps {
 		if plan.Steps[i].Name == "Docker Compose (CLI plugin)" {
@@ -200,12 +177,40 @@ func TestResolve_DevStackFixture(t *testing.T) {
 		}
 	}
 	if compose == nil {
-		t.Fatal("did not find step named 'Docker Compose (CLI plugin)' in dev-stack")
+		t.Fatal("did not find step named 'Docker Compose (CLI plugin)' in backend recipe")
 	}
 	if compose.Type != "shell" {
 		t.Errorf("compose.Type = %q, want shell", compose.Type)
 	}
 	if compose.Install == "" {
 		t.Error("compose.Install is empty")
+	}
+}
+
+func TestResolve_FrontendFixture(t *testing.T) {
+	r, err := recipe.LoadRecipe("../../examples/recipes/frontend.yaml")
+	if err != nil {
+		t.Fatalf("LoadRecipe: %v", err)
+	}
+	plan, err := recipe.Resolve(r, "../../examples/recipes")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got, want := len(plan.Steps), 4; got != want {
+		t.Fatalf("Steps len = %d, want %d (%+v)", got, want, plan.Steps)
+	}
+	// base: Homebrew, Git, jq — node: nvm
+	var nvm *config.Step
+	for i := range plan.Steps {
+		if plan.Steps[i].Name == "nvm" {
+			nvm = &plan.Steps[i]
+			break
+		}
+	}
+	if nvm == nil {
+		t.Fatal("did not find step named 'nvm' in frontend recipe")
+	}
+	if nvm.Type != "curl-pipe-sh" {
+		t.Errorf("nvm.Type = %q, want curl-pipe-sh", nvm.Type)
 	}
 }

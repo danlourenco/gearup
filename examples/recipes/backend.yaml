@@ -1,0 +1,16 @@
+version: 1
+name: "Backend"
+description: "Full macOS developer toolchain for backend/infra work"
+
+platform:
+  os: [darwin]
+
+ingredient_sources:
+  - path: ../ingredients
+
+ingredients:
+  - base
+  - jvm
+  - containers
+  - aws-k8s
+  - node

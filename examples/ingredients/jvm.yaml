@@ -1,0 +1,8 @@
+version: 1
+name: jvm
+description: "JVM development toolchain (OpenJDK 21)"
+
+steps:
+  - name: OpenJDK 21
+    type: brew
+    formula: openjdk@21

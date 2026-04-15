@@ -20,7 +20,7 @@ import (
 	"gearup/internal/runner"
 )
 
-const version = "0.0.2-phase2"
+const version = "0.0.3-phase2"
 
 func main() {
 	root := &cobra.Command{

@@ -1,0 +1,20 @@
+version: 1
+name: base
+description: "Homebrew + universal core CLI tools (git, jq)"
+
+steps:
+  - name: Homebrew
+    type: curl-pipe-sh
+    url: https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh
+    check: command -v brew
+
+  # Git is commonly pre-installed from Xcode Command Line Tools.
+  # The availability check avoids installing a duplicate via brew.
+  - name: Git
+    type: brew
+    formula: git
+    check: command -v git
+
+  - name: jq
+    type: brew
+    formula: jq
