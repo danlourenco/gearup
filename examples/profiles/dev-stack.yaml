@@ -5,8 +5,8 @@ description: "Full macOS developer toolchain for a standard backend/infra stack"
 platform:
   os: [darwin]
 
-recipe_sources:
+ingredient_sources:
   - path: ../recipes
 
-includes:
-  - recipe: dev-stack
+ingredients:
+  - dev-stack

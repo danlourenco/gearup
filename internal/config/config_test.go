@@ -8,52 +8,52 @@ import (
 	"gearup/internal/config"
 )
 
-func TestProfileUnmarshal(t *testing.T) {
+func TestRecipeUnmarshal(t *testing.T) {
 	const src = `
 version: 1
-name: "Example Profile"
+name: "Example Recipe"
 description: "for tests"
 platform:
   os: [darwin]
   arch: [arm64, amd64]
-recipe_sources:
-  - path: ~/src/my-recipes
-includes:
-  - recipe: example-recipe
+ingredient_sources:
+  - path: ~/src/my-ingredients
+ingredients:
+  - example-ingredient
 steps:
   - name: "Inline step"
     type: brew
     formula: jq
 `
-	var p config.Profile
-	if err := yaml.Unmarshal([]byte(src), &p); err != nil {
+	var r config.Recipe
+	if err := yaml.Unmarshal([]byte(src), &r); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if p.Version != 1 {
-		t.Errorf("Version = %d, want 1", p.Version)
+	if r.Version != 1 {
+		t.Errorf("Version = %d, want 1", r.Version)
 	}
-	if p.Name != "Example Profile" {
-		t.Errorf("Name = %q, want %q", p.Name, "Example Profile")
+	if r.Name != "Example Recipe" {
+		t.Errorf("Name = %q, want %q", r.Name, "Example Recipe")
 	}
-	if got := p.Platform.OS; len(got) != 1 || got[0] != "darwin" {
+	if got := r.Platform.OS; len(got) != 1 || got[0] != "darwin" {
 		t.Errorf("Platform.OS = %v, want [darwin]", got)
 	}
-	if len(p.RecipeSources) != 1 || p.RecipeSources[0].Path != "~/src/my-recipes" {
-		t.Errorf("RecipeSources = %+v", p.RecipeSources)
+	if len(r.IngredientSources) != 1 || r.IngredientSources[0].Path != "~/src/my-ingredients" {
+		t.Errorf("IngredientSources = %+v", r.IngredientSources)
 	}
-	if len(p.Includes) != 1 || p.Includes[0].Recipe != "example-recipe" {
-		t.Errorf("Includes = %+v", p.Includes)
+	if len(r.Ingredients) != 1 || r.Ingredients[0] != "example-ingredient" {
+		t.Errorf("Ingredients = %+v", r.Ingredients)
 	}
-	if len(p.Steps) != 1 || p.Steps[0].Type != "brew" || p.Steps[0].Formula != "jq" {
-		t.Errorf("Steps = %+v", p.Steps)
+	if len(r.Steps) != 1 || r.Steps[0].Type != "brew" || r.Steps[0].Formula != "jq" {
+		t.Errorf("Steps = %+v", r.Steps)
 	}
 }
 
-func TestRecipeUnmarshal(t *testing.T) {
+func TestIngredientUnmarshal(t *testing.T) {
 	const src = `
 version: 1
-name: example-recipe
-description: "test recipe"
+name: example-ingredient
+description: "test ingredient"
 steps:
   - name: "Install jq"
     type: brew
@@ -62,11 +62,11 @@ steps:
     type: brew
     formula: git
 `
-	var r config.Recipe
+	var r config.Ingredient
 	if err := yaml.Unmarshal([]byte(src), &r); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if r.Name != "example-recipe" {
+	if r.Name != "example-ingredient" {
 		t.Errorf("Name = %q", r.Name)
 	}
 	if len(r.Steps) != 2 {
@@ -95,14 +95,14 @@ steps:
       echo "installing thing"
       touch thing
 `
-	var p config.Profile
-	if err := yaml.Unmarshal([]byte(src), &p); err != nil {
+	var r config.Recipe
+	if err := yaml.Unmarshal([]byte(src), &r); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if len(p.Steps) != 2 {
-		t.Fatalf("Steps len = %d, want 2", len(p.Steps))
+	if len(r.Steps) != 2 {
+		t.Fatalf("Steps len = %d, want 2", len(r.Steps))
 	}
-	cp := p.Steps[0]
+	cp := r.Steps[0]
 	if cp.Type != "curl-pipe-sh" || cp.URL != "https://example.com/install.sh" {
 		t.Errorf("curl-pipe step = %+v", cp)
 	}
@@ -112,7 +112,7 @@ steps:
 	if len(cp.Args) != 1 || cp.Args[0] != "--quiet" {
 		t.Errorf("Args = %v", cp.Args)
 	}
-	sh := p.Steps[1]
+	sh := r.Steps[1]
 	if sh.Type != "shell" || sh.Install == "" {
 		t.Errorf("shell step = %+v", sh)
 	}

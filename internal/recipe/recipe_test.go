@@ -1,4 +1,4 @@
-package profile_test
+package recipe_test
 
 import (
 	"os"
@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"gearup/internal/config"
-	"gearup/internal/profile"
+	"gearup/internal/recipe"
 )
 
 // writeFile is a helper for fixture setup.
@@ -22,31 +22,31 @@ func writeFile(t *testing.T, dir, name, contents string) string {
 	return p
 }
 
-func TestLoadProfile(t *testing.T) {
+func TestLoadRecipe(t *testing.T) {
 	dir := t.TempDir()
-	path := writeFile(t, dir, "profile.yaml", `
+	path := writeFile(t, dir, "recipe.yaml", `
 version: 1
 name: "Test"
-includes:
-  - recipe: sample
+ingredients:
+  - sample
 `)
-	p, err := profile.LoadProfile(path)
+	r, err := recipe.LoadRecipe(path)
 	if err != nil {
-		t.Fatalf("LoadProfile: %v", err)
+		t.Fatalf("LoadRecipe: %v", err)
 	}
-	if p.Name != "Test" {
-		t.Errorf("Name = %q", p.Name)
+	if r.Name != "Test" {
+		t.Errorf("Name = %q", r.Name)
 	}
-	if len(p.Includes) != 1 || p.Includes[0].Recipe != "sample" {
-		t.Errorf("Includes = %+v", p.Includes)
+	if len(r.Ingredients) != 1 || r.Ingredients[0] != "sample" {
+		t.Errorf("Ingredients = %+v", r.Ingredients)
 	}
 }
 
 func TestResolve_RecipeFromLocalPath(t *testing.T) {
 	root := t.TempDir()
-	recipesDir := filepath.Join(root, "my-recipes")
+	ingredientsDir := filepath.Join(root, "my-ingredients")
 
-	writeFile(t, recipesDir, "sample.yaml", `
+	writeFile(t, ingredientsDir, "sample.yaml", `
 version: 1
 name: sample
 steps:
@@ -54,24 +54,24 @@ steps:
     type: brew
     formula: jq
 `)
-	profilePath := writeFile(t, root, "profile.yaml", `
+	recipePath := writeFile(t, root, "recipe.yaml", `
 version: 1
 name: "Test"
-recipe_sources:
-  - path: `+recipesDir+`
-includes:
-  - recipe: sample
+ingredient_sources:
+  - path: `+ingredientsDir+`
+ingredients:
+  - sample
 steps:
   - name: "Inline step"
     type: brew
     formula: git
 `)
 
-	p, err := profile.LoadProfile(profilePath)
+	r, err := recipe.LoadRecipe(recipePath)
 	if err != nil {
-		t.Fatalf("LoadProfile: %v", err)
+		t.Fatalf("LoadRecipe: %v", err)
 	}
-	plan, err := profile.Resolve(p, filepath.Dir(profilePath))
+	plan, err := recipe.Resolve(r, filepath.Dir(recipePath))
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -88,25 +88,25 @@ steps:
 
 func TestResolve_RecipeNotFound(t *testing.T) {
 	root := t.TempDir()
-	profilePath := writeFile(t, root, "profile.yaml", `
+	recipePath := writeFile(t, root, "recipe.yaml", `
 version: 1
 name: "Test"
-includes:
-  - recipe: does-not-exist
+ingredients:
+  - does-not-exist
 `)
-	p, err := profile.LoadProfile(profilePath)
+	r, err := recipe.LoadRecipe(recipePath)
 	if err != nil {
-		t.Fatalf("LoadProfile: %v", err)
+		t.Fatalf("LoadRecipe: %v", err)
 	}
-	_, err = profile.Resolve(p, filepath.Dir(profilePath))
+	_, err = recipe.Resolve(r, filepath.Dir(recipePath))
 	if err == nil {
-		t.Error("want error for missing recipe, got nil")
+		t.Error("want error for missing ingredient, got nil")
 	}
 }
 
-func TestResolve_RelativePathResolvedAgainstProfileDir(t *testing.T) {
+func TestResolve_RelativePathResolvedAgainstRecipeDir(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, "recipes"), "sample.yaml", `
+	writeFile(t, filepath.Join(root, "ingredients"), "sample.yaml", `
 version: 1
 name: sample
 steps:
@@ -114,19 +114,19 @@ steps:
     type: brew
     formula: jq
 `)
-	profilePath := writeFile(t, root, "profile.yaml", `
+	recipePath := writeFile(t, root, "recipe.yaml", `
 version: 1
 name: "Test"
-recipe_sources:
-  - path: ./recipes
-includes:
-  - recipe: sample
+ingredient_sources:
+  - path: ./ingredients
+ingredients:
+  - sample
 `)
-	p, err := profile.LoadProfile(profilePath)
+	r, err := recipe.LoadRecipe(recipePath)
 	if err != nil {
-		t.Fatalf("LoadProfile: %v", err)
+		t.Fatalf("LoadRecipe: %v", err)
 	}
-	plan, err := profile.Resolve(p, filepath.Dir(profilePath))
+	plan, err := recipe.Resolve(r, filepath.Dir(recipePath))
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -136,11 +136,11 @@ includes:
 }
 
 func TestResolve_ExampleFixture(t *testing.T) {
-	p, err := profile.LoadProfile("../../examples/profiles/example.yaml")
+	r, err := recipe.LoadRecipe("../../examples/profiles/example.yaml")
 	if err != nil {
-		t.Fatalf("LoadProfile: %v", err)
+		t.Fatalf("LoadRecipe: %v", err)
 	}
-	plan, err := profile.Resolve(p, "../../examples/profiles")
+	plan, err := recipe.Resolve(r, "../../examples/profiles")
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -153,11 +153,11 @@ func TestResolve_ExampleFixture(t *testing.T) {
 }
 
 func TestResolve_DevStackFixture(t *testing.T) {
-	p, err := profile.LoadProfile("../../examples/profiles/dev-stack.yaml")
+	r, err := recipe.LoadRecipe("../../examples/profiles/dev-stack.yaml")
 	if err != nil {
-		t.Fatalf("LoadProfile: %v", err)
+		t.Fatalf("LoadRecipe: %v", err)
 	}
-	plan, err := profile.Resolve(p, "../../examples/profiles")
+	plan, err := recipe.Resolve(r, "../../examples/profiles")
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}

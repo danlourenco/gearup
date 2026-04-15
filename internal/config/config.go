@@ -1,37 +1,33 @@
-// Package config defines the data types for gearup profiles and recipes.
+// Package config defines the data types for gearup recipes and ingredients.
 // It contains no I/O or resolution logic — just struct shapes and YAML tags.
 package config
 
-// Profile is the top-level entry point loaded from a profile YAML file.
-type Profile struct {
-	Version       int            `yaml:"version"`
-	Name          string         `yaml:"name"`
-	Description   string         `yaml:"description,omitempty"`
-	Platform      Platform       `yaml:"platform,omitempty"`
-	RecipeSources []RecipeSource `yaml:"recipe_sources,omitempty"`
-	Includes      []Include      `yaml:"includes,omitempty"`
-	Steps         []Step         `yaml:"steps,omitempty"`
+// Recipe is the top-level entry point loaded from a recipe YAML file.
+// A recipe composes ingredients plus optional inline steps.
+type Recipe struct {
+	Version           int                `yaml:"version"`
+	Name              string             `yaml:"name"`
+	Description       string             `yaml:"description,omitempty"`
+	Platform          Platform           `yaml:"platform,omitempty"`
+	IngredientSources []IngredientSource `yaml:"ingredient_sources,omitempty"`
+	Ingredients       []string           `yaml:"ingredients,omitempty"`
+	Steps             []Step             `yaml:"steps,omitempty"`
 }
 
-// Platform constrains which OS/arch a profile (or step) applies to.
+// Platform constrains which OS/arch a recipe (or step) applies to.
 type Platform struct {
 	OS   []string `yaml:"os,omitempty"`
 	Arch []string `yaml:"arch,omitempty"`
 }
 
-// RecipeSource declares a location where recipes can be resolved from.
-// Phase 1 supports only local filesystem paths.
-type RecipeSource struct {
+// IngredientSource declares a location where ingredients can be resolved from.
+type IngredientSource struct {
 	Path string `yaml:"path,omitempty"`
 }
 
-// Include references a recipe by name; resolved against the search path.
-type Include struct {
-	Recipe string `yaml:"recipe"`
-}
-
-// Recipe is a bundle of steps loaded from a recipe YAML file.
-type Recipe struct {
+// Ingredient is a reusable bundle of steps loaded from an ingredient YAML file,
+// referenced by name from a recipe's `ingredients` list.
+type Ingredient struct {
 	Version     int    `yaml:"version"`
 	Name        string `yaml:"name"`
 	Description string `yaml:"description,omitempty"`
@@ -39,8 +35,6 @@ type Recipe struct {
 }
 
 // Step is one unit of provisioning work.
-// Phase 1 only implements type: brew, so the type-specific fields here
-// are minimal; future phases add cask, url, repo, etc.
 type Step struct {
 	Name              string   `yaml:"name"`
 	Type              string   `yaml:"type"`
@@ -60,9 +54,9 @@ type Step struct {
 	Install string `yaml:"install,omitempty"`
 }
 
-// ResolvedPlan is a flattened, ordered list of steps produced by
-// resolving a profile's recipe references.
+// ResolvedPlan is a flattened, ordered list of steps produced by resolving
+// a recipe's ingredient references.
 type ResolvedPlan struct {
-	Profile *Profile
-	Steps   []Step
+	Recipe *Recipe
+	Steps  []Step
 }

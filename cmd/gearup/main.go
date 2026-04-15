@@ -1,5 +1,5 @@
 // Command gearup is an open-source macOS developer-machine bootstrap CLI.
-// Phase 1: runs a single profile with brew steps only.
+// Phase 1: runs a single recipe with brew steps only.
 package main
 
 import (
@@ -16,7 +16,7 @@ import (
 	"gearup/internal/installer/brew"
 	"gearup/internal/installer/curlpipe"
 	"gearup/internal/installer/shell"
-	"gearup/internal/profile"
+	"gearup/internal/recipe"
 	"gearup/internal/runner"
 )
 
@@ -35,27 +35,27 @@ func main() {
 }
 
 func runCmd() *cobra.Command {
-	var profilePath string
+	var recipePath string
 	cmd := &cobra.Command{
 		Use:   "run",
-		Short: "Execute a provisioning profile",
+		Short: "Execute a provisioning recipe",
 		RunE: func(c *cobra.Command, args []string) error {
 			if runtime.GOOS != "darwin" {
 				fmt.Fprintln(os.Stderr, "gearup currently supports macOS only")
 				os.Exit(4)
 			}
-			if profilePath == "" {
-				return fmt.Errorf("--profile is required (Phase 1)")
+			if recipePath == "" {
+				return fmt.Errorf("--recipe is required")
 			}
-			absProfile, err := filepath.Abs(profilePath)
+			absRecipe, err := filepath.Abs(recipePath)
 			if err != nil {
 				return err
 			}
-			p, err := profile.LoadProfile(absProfile)
+			r, err := recipe.LoadRecipe(absRecipe)
 			if err != nil {
 				return err
 			}
-			plan, err := profile.Resolve(p, filepath.Dir(absProfile))
+			plan, err := recipe.Resolve(r, filepath.Dir(absRecipe))
 			if err != nil {
 				return err
 			}
@@ -66,10 +66,10 @@ func runCmd() *cobra.Command {
 				"curl-pipe-sh": &curlpipe.Installer{Runner: shellRunner},
 				"shell":        &shell.Installer{Runner: shellRunner},
 			}
-			r := &runner.Runner{Registry: reg, Out: stdPrinter{}}
+			runner := &runner.Runner{Registry: reg, Out: stdPrinter{}}
 
-			fmt.Printf("PROFILE: %s  (%d steps)\n\n", p.Name, len(plan.Steps))
-			if err := r.Run(context.Background(), plan); err != nil {
+			fmt.Printf("RECIPE: %s  (%d steps)\n\n", r.Name, len(plan.Steps))
+			if err := runner.Run(context.Background(), plan); err != nil {
 				fmt.Fprintln(os.Stderr, "error:", err)
 				os.Exit(1)
 			}
@@ -77,7 +77,7 @@ func runCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&profilePath, "profile", "", "path to profile YAML (required)")
+	cmd.Flags().StringVar(&recipePath, "recipe", "", "path to recipe YAML (required)")
 	return cmd
 }
 
