@@ -14,6 +14,8 @@ import (
 	gearexec "gearup/internal/exec"
 	"gearup/internal/installer"
 	"gearup/internal/installer/brew"
+	"gearup/internal/installer/curlpipe"
+	"gearup/internal/installer/shell"
 	"gearup/internal/profile"
 	"gearup/internal/runner"
 )
@@ -58,9 +60,11 @@ func runCmd() *cobra.Command {
 				return err
 			}
 
-			shell := &gearexec.ShellRunner{Stdout: os.Stdout, Stderr: os.Stderr}
+			shellRunner := &gearexec.ShellRunner{Stdout: os.Stdout, Stderr: os.Stderr}
 			reg := installer.Registry{
-				"brew": &brew.Installer{Runner: shell},
+				"brew":         &brew.Installer{Runner: shellRunner},
+				"curl-pipe-sh": &curlpipe.Installer{Runner: shellRunner},
+				"shell":        &shell.Installer{Runner: shellRunner},
 			}
 			r := &runner.Runner{Registry: reg, Out: stdPrinter{}}
 
