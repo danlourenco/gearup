@@ -1,0 +1,15 @@
+# Binaries
+/gearup
+/bin/
+
+# Go build artifacts
+*.test
+*.out
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
