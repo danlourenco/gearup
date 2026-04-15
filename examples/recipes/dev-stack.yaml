@@ -1,0 +1,50 @@
+version: 1
+name: dev-stack
+description: "Full macOS developer toolchain: Homebrew, core CLI tools, JVM, containers, AWS, K8s, Node"
+
+steps:
+  - name: Homebrew
+    type: curl-pipe-sh
+    url: https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh
+    check: command -v brew
+
+  - name: Git
+    type: brew
+    formula: git
+
+  - name: OpenJDK 21
+    type: brew
+    formula: openjdk@21
+
+  - name: Docker CLI
+    type: brew
+    formula: docker
+
+  - name: Docker Compose
+    type: brew
+    formula: docker-compose
+
+  - name: Colima
+    type: brew
+    formula: colima
+
+  - name: AWS CLI
+    type: brew
+    formula: awscli
+
+  - name: aws-iam-authenticator
+    type: brew
+    formula: aws-iam-authenticator
+
+  - name: kubectl
+    type: brew
+    formula: kubectl
+
+  - name: jq
+    type: brew
+    formula: jq
+
+  - name: nvm
+    type: curl-pipe-sh
+    url: https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh
+    check: '[ -s "$HOME/.nvm/nvm.sh" ]'

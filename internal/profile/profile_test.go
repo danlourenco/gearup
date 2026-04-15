@@ -150,3 +150,28 @@ func TestResolve_ExampleFixture(t *testing.T) {
 		t.Errorf("Steps[0] = %+v", plan.Steps[0])
 	}
 }
+
+func TestResolve_DevStackFixture(t *testing.T) {
+	p, err := profile.LoadProfile("../../examples/profiles/dev-stack.yaml")
+	if err != nil {
+		t.Fatalf("LoadProfile: %v", err)
+	}
+	plan, err := profile.Resolve(p, "../../examples/profiles")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got, want := len(plan.Steps), 11; got != want {
+		t.Fatalf("Steps len = %d, want %d", got, want)
+	}
+	// spot-check: first step is Homebrew (curl-pipe-sh), last step is nvm (curl-pipe-sh)
+	if plan.Steps[0].Type != "curl-pipe-sh" || plan.Steps[0].Name != "Homebrew" {
+		t.Errorf("Steps[0] = %+v, want Homebrew curl-pipe-sh", plan.Steps[0])
+	}
+	if plan.Steps[10].Type != "curl-pipe-sh" || plan.Steps[10].Name != "nvm" {
+		t.Errorf("Steps[10] = %+v, want nvm curl-pipe-sh", plan.Steps[10])
+	}
+	// middle: OpenJDK 21 via brew
+	if plan.Steps[2].Type != "brew" || plan.Steps[2].Formula != "openjdk@21" {
+		t.Errorf("Steps[2] = %+v, want openjdk@21 brew", plan.Steps[2])
+	}
+}
