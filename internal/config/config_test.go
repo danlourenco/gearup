@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -115,5 +116,28 @@ steps:
 	sh := r.Steps[1]
 	if sh.Type != "shell" || sh.Install == "" {
 		t.Errorf("shell step = %+v", sh)
+	}
+}
+
+func TestElevationUnmarshal(t *testing.T) {
+	const src = `
+version: 1
+name: "Backend"
+elevation:
+  message: "Please elevate admin permissions now, then press Enter."
+  duration: 180s
+`
+	var r config.Recipe
+	if err := yaml.Unmarshal([]byte(src), &r); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if r.Elevation == nil {
+		t.Fatal("Elevation is nil, want non-nil")
+	}
+	if r.Elevation.Message == "" {
+		t.Error("Elevation.Message empty")
+	}
+	if r.Elevation.Duration != 180*time.Second {
+		t.Errorf("Elevation.Duration = %v, want 180s", r.Elevation.Duration)
 	}
 }
