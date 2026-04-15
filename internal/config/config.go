@@ -50,6 +50,14 @@ type Step struct {
 
 	// brew-specific
 	Formula string `yaml:"formula,omitempty"`
+
+	// curl-pipe-sh
+	URL   string   `yaml:"url,omitempty"`
+	Shell string   `yaml:"shell,omitempty"`
+	Args  []string `yaml:"args,omitempty"`
+
+	// shell (raw)
+	Install string `yaml:"install,omitempty"`
 }
 
 // ResolvedPlan is a flattened, ordered list of steps produced by
