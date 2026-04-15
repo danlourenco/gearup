@@ -36,8 +36,9 @@ steps:
       set -euo pipefail
       DOCKER_CONFIG="${DOCKER_CONFIG:-$HOME/.docker}"
       mkdir -p "$DOCKER_CONFIG/cli-plugins"
+      ARCH="$(uname -m | sed 's/arm64/aarch64/')"
       curl -fsSL \
-        "https://github.com/docker/compose/releases/download/v2.32.4/docker-compose-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)" \
+        "https://github.com/docker/compose/releases/download/v2.32.4/docker-compose-$(uname -s | tr '[:upper:]' '[:lower:]')-${ARCH}" \
         -o "$DOCKER_CONFIG/cli-plugins/docker-compose"
       chmod +x "$DOCKER_CONFIG/cli-plugins/docker-compose"
 
