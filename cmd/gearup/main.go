@@ -23,7 +23,9 @@ import (
 	"gearup/internal/ui"
 )
 
-const version = "0.0.7"
+// version is set by goreleaser via ldflags at build time.
+// Falls back to "dev" for local builds.
+var version = "dev"
 
 func main() {
 	root := &cobra.Command{
