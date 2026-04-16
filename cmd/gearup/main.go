@@ -5,12 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
 
 	"github.com/spf13/cobra"
 
+	"gearup/configs"
 	"gearup/internal/config"
 	"gearup/internal/elevation"
 	gearexec "gearup/internal/exec"
@@ -34,7 +36,7 @@ func main() {
 		Use:   "gearup",
 		Short: "Open-source macOS developer-machine bootstrap CLI",
 	}
-	root.AddCommand(runCmd(), planCmd(), versionCmd())
+	root.AddCommand(runCmd(), planCmd(), initCmd(), versionCmd())
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
 	}
@@ -170,27 +172,112 @@ func execute(configPath string, dryRun, yes bool) error {
 // discoverAndPick scans well-known directories for config files and
 // prompts the user to select one via Huh.
 func discoverAndPick() (string, error) {
-	var dirs []string
-
-	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		dirs = append(dirs, filepath.Join(xdg, "gearup", "configs"))
-	} else if home, err := os.UserHomeDir(); err == nil {
-		dirs = append(dirs, filepath.Join(home, ".config", "gearup", "configs"))
-	}
-
-	if cwd, err := os.Getwd(); err == nil {
-		dirs = append(dirs, filepath.Join(cwd, "configs"))
-	}
+	dirs := configSearchDirs()
 
 	entries, err := ui.DiscoverConfigs(dirs)
 	if err != nil {
 		return "", err
 	}
+
+	// No configs found — auto-extract embedded defaults.
+	if len(entries) == 0 {
+		fmt.Println("No configs found. Writing defaults...")
+		dir, err := initDefaults(false)
+		if err != nil {
+			return "", fmt.Errorf("auto-init: %w", err)
+		}
+		// Re-scan with the new directory included.
+		dirs = append(dirs, dir)
+		entries, err = ui.DiscoverConfigs(dirs)
+		if err != nil {
+			return "", err
+		}
+	}
+
 	picked, err := ui.PickConfig(entries)
 	if err != nil {
 		return "", err
 	}
 	return picked.Path, nil
+}
+
+func configSearchDirs() []string {
+	var dirs []string
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		dirs = append(dirs, filepath.Join(xdg, "gearup", "configs"))
+	} else if home, err := os.UserHomeDir(); err == nil {
+		dirs = append(dirs, filepath.Join(home, ".config", "gearup", "configs"))
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		dirs = append(dirs, filepath.Join(cwd, "configs"))
+	}
+	return dirs
+}
+
+// initDefaults writes the embedded default configs to the user's config
+// directory. Returns the directory path. Existing files are NOT overwritten
+// unless force is true.
+func initDefaults(force bool) (string, error) {
+	configDir := defaultConfigDir()
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		return "", fmt.Errorf("create config dir: %w", err)
+	}
+
+	entries, err := fs.ReadDir(configs.Defaults, ".")
+	if err != nil {
+		return "", err
+	}
+	written := 0
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".yaml" {
+			continue
+		}
+		dest := filepath.Join(configDir, e.Name())
+		if !force {
+			if _, err := os.Stat(dest); err == nil {
+				continue // don't overwrite existing
+			}
+		}
+		data, err := configs.Defaults.ReadFile(e.Name())
+		if err != nil {
+			return "", err
+		}
+		if err := os.WriteFile(dest, data, 0o644); err != nil {
+			return "", err
+		}
+		written++
+	}
+	if written > 0 {
+		fmt.Printf("Wrote %d default config(s) to %s\n", written, configDir)
+	}
+	return configDir, nil
+}
+
+func defaultConfigDir() string {
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		return filepath.Join(xdg, "gearup", "configs")
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".config", "gearup", "configs")
+}
+
+func initCmd() *cobra.Command {
+	var force bool
+	cmd := &cobra.Command{
+		Use:   "init",
+		Short: "Write default configs to ~/.config/gearup/configs/",
+		RunE: func(c *cobra.Command, args []string) error {
+			dir, err := initDefaults(force)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Configs ready at %s\n", dir)
+			fmt.Println("Run `gearup run` to pick one.")
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&force, "force", false, "overwrite existing config files")
+	return cmd
 }
 
 func versionCmd() *cobra.Command {
