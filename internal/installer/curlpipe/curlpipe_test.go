@@ -93,8 +93,8 @@ func TestCurlPipe_InstallCustomShellAndArgs(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 	got := f.Calls()
-	if len(got) != 1 || !strings.Contains(got[0], "| sh -s -- --quiet") {
-		t.Errorf("Calls = %v", got)
+	if len(got) != 1 || !strings.Contains(got[0].Cmd, "| sh -s -- --quiet") {
+		t.Errorf("Calls = %+v", got)
 	}
 }
 

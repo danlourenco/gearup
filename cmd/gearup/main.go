@@ -61,7 +61,7 @@ func runCmd() *cobra.Command {
 				return err
 			}
 
-			shellRunner := &gearexec.ShellRunner{Stdout: os.Stdout, Stderr: os.Stderr}
+			shellRunner := &gearexec.ShellRunner{StreamOut: os.Stdout, StreamErr: os.Stderr}
 			reg := installer.Registry{
 				"brew":         &brew.Installer{Runner: shellRunner},
 				"curl-pipe-sh": &curlpipe.Installer{Runner: shellRunner},

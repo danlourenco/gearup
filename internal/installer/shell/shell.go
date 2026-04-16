@@ -20,7 +20,7 @@ func (i *Installer) Check(ctx context.Context, step config.Step) (bool, error) {
 	if step.Check == "" {
 		return false, fmt.Errorf("shell step %q requires an explicit check", step.Name)
 	}
-	res, err := i.Runner.Run(ctx, step.Check)
+	res, err := i.Runner.RunQuiet(ctx, step.Check)
 	if err != nil {
 		return false, err
 	}

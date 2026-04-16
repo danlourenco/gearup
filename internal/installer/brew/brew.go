@@ -26,7 +26,7 @@ func (i *Installer) Check(ctx context.Context, step config.Step) (bool, error) {
 	if cmd == "" {
 		cmd = fmt.Sprintf("brew list --formula %s", step.Formula)
 	}
-	res, err := i.Runner.Run(ctx, cmd)
+	res, err := i.Runner.RunQuiet(ctx, cmd)
 	if err != nil {
 		return false, err
 	}

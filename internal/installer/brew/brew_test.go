@@ -83,7 +83,7 @@ func TestBrew_CheckUsesOverrideWhenSet(t *testing.T) {
 	if !ok {
 		t.Error("installed = false, want true")
 	}
-	if got := f.Calls(); len(got) != 1 || got[0] != "command -v git" {
-		t.Errorf("Calls = %v, want single call to 'command -v git' (not default)", got)
+	if got := f.Calls(); len(got) != 1 || got[0].Cmd != "command -v git" || !got[0].Quiet {
+		t.Errorf("Calls = %+v, want single quiet call to 'command -v git'", got)
 	}
 }
