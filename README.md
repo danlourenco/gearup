@@ -6,25 +6,19 @@ Define your team's toolchain in a YAML config, run `gearup run`, and get a fully
 
 ## Quick start
 
-### Install from GitHub releases (no Go required)
+### Install (no Go required)
 
 ```bash
-# macOS (Apple Silicon)
-mkdir -p ~/.local/bin
-curl -fsSL https://github.com/danlourenco/gearup/releases/latest/download/gearup_darwin_arm64.tar.gz | tar xz -C ~/.local/bin
-
-# macOS (Intel)
-mkdir -p ~/.local/bin
-curl -fsSL https://github.com/danlourenco/gearup/releases/latest/download/gearup_darwin_amd64.tar.gz | tar xz -C ~/.local/bin
+curl -fsSL https://raw.githubusercontent.com/danlourenco/gearup/master/install.sh | bash
 ```
 
-Make sure `~/.local/bin` is on your PATH. Add this to `~/.zshrc` if it isn't:
+Detects your architecture, downloads the latest release to `~/.local/bin/`, and verifies the install. No `sudo` required.
+
+To install to a different location:
 
 ```bash
-export PATH="$HOME/.local/bin:$PATH"
+GEARUP_INSTALL_DIR=~/bin curl -fsSL https://raw.githubusercontent.com/danlourenco/gearup/master/install.sh | bash
 ```
-
-No `sudo` required — the binary lives in your home directory.
 
 ### Build from source (requires Go 1.22+)
 
