@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"gearup/internal/elevation"
 	gearexec "gearup/internal/exec"
 	"gearup/internal/installer"
 	"gearup/internal/installer/brew"
@@ -20,7 +21,7 @@ import (
 	"gearup/internal/runner"
 )
 
-const version = "0.0.3-phase2"
+const version = "0.0.4-phase3"
 
 func main() {
 	root := &cobra.Command{
@@ -66,7 +67,11 @@ func runCmd() *cobra.Command {
 				"curl-pipe-sh": &curlpipe.Installer{Runner: shellRunner},
 				"shell":        &shell.Installer{Runner: shellRunner},
 			}
-			runner := &runner.Runner{Registry: reg, Out: stdPrinter{}}
+			runner := &runner.Runner{
+				Registry: reg,
+				Out:      stdPrinter{},
+				Prompter: elevation.HuhPrompter{},
+			}
 
 			fmt.Printf("RECIPE: %s  (%d steps)\n\n", r.Name, len(plan.Steps))
 			if err := runner.Run(context.Background(), plan); err != nil {
@@ -95,3 +100,4 @@ func versionCmd() *cobra.Command {
 type stdPrinter struct{}
 
 func (stdPrinter) Printf(format string, args ...any) { fmt.Printf(format, args...) }
+func (stdPrinter) Write(p []byte) (int, error)       { return os.Stdout.Write(p) }
