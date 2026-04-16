@@ -23,7 +23,7 @@ import (
 	"gearup/internal/ui"
 )
 
-const version = "0.0.6-phase4b"
+const version = "0.0.7"
 
 func main() {
 	root := &cobra.Command{
