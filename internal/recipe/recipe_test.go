@@ -200,6 +200,14 @@ func TestResolve_BackendFixture(t *testing.T) {
 	if !jvmSymlink.RequiresElevation {
 		t.Error("jvm symlink step should have RequiresElevation:true")
 	}
+
+	// Phase 3: the backend recipe declares an elevation block.
+	if r.Elevation == nil {
+		t.Fatal("backend recipe has no Elevation block")
+	}
+	if r.Elevation.Duration == 0 {
+		t.Error("backend recipe Elevation.Duration is zero")
+	}
 }
 
 func TestResolve_FrontendFixture(t *testing.T) {
