@@ -69,3 +69,14 @@ func TestAcquire_EmptyMessage_ReturnsError(t *testing.T) {
 		t.Error("want error for empty message, got nil")
 	}
 }
+
+func TestAutoApprovePrompter_AlwaysConfirms(t *testing.T) {
+	p := elevation.AutoApprovePrompter{}
+	ok, err := p.Confirm("whatever")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Error("Confirm returned false, want true")
+	}
+}
