@@ -179,7 +179,7 @@ func discoverAndPick() (string, error) {
 	}
 
 	if cwd, err := os.Getwd(); err == nil {
-		dirs = append(dirs, filepath.Join(cwd, "examples", "configs"))
+		dirs = append(dirs, filepath.Join(cwd, "configs"))
 	}
 
 	entries, err := ui.DiscoverConfigs(dirs)

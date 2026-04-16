@@ -397,11 +397,11 @@ extends:
 }
 
 func TestResolve_BackendFixture(t *testing.T) {
-	c, err := config.Load("../../examples/configs/backend.yaml")
+	c, err := config.Load("../../configs/backend.yaml")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	plan, err := config.Resolve(c, "../../examples/configs")
+	plan, err := config.Resolve(c, "../../configs")
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -469,11 +469,11 @@ func TestResolve_BackendFixture(t *testing.T) {
 }
 
 func TestResolve_DesktopAppsFixture(t *testing.T) {
-	c, err := config.Load("../../examples/configs/desktop-apps.yaml")
+	c, err := config.Load("../../configs/desktop-apps.yaml")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	plan, err := config.Resolve(c, "../../examples/configs")
+	plan, err := config.Resolve(c, "../../configs")
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -489,11 +489,11 @@ func TestResolve_DesktopAppsFixture(t *testing.T) {
 }
 
 func TestResolve_FrontendFixture(t *testing.T) {
-	c, err := config.Load("../../examples/configs/frontend.yaml")
+	c, err := config.Load("../../configs/frontend.yaml")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	plan, err := config.Resolve(c, "../../examples/configs")
+	plan, err := config.Resolve(c, "../../configs")
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
