@@ -10,13 +10,21 @@ Define your team's toolchain in a YAML config, run `gearup run`, and get a fully
 
 ```bash
 # macOS (Apple Silicon)
-curl -fsSL https://github.com/danlourenco/gearup/releases/latest/download/gearup_darwin_arm64.tar.gz | tar xz
-sudo mv gearup /usr/local/bin/
+mkdir -p ~/.local/bin
+curl -fsSL https://github.com/danlourenco/gearup/releases/latest/download/gearup_darwin_arm64.tar.gz | tar xz -C ~/.local/bin
 
 # macOS (Intel)
-curl -fsSL https://github.com/danlourenco/gearup/releases/latest/download/gearup_darwin_amd64.tar.gz | tar xz
-sudo mv gearup /usr/local/bin/
+mkdir -p ~/.local/bin
+curl -fsSL https://github.com/danlourenco/gearup/releases/latest/download/gearup_darwin_amd64.tar.gz | tar xz -C ~/.local/bin
 ```
+
+Make sure `~/.local/bin` is on your PATH. Add this to `~/.zshrc` if it isn't:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+No `sudo` required — the binary lives in your home directory.
 
 ### Build from source (requires Go 1.22+)
 
