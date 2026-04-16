@@ -464,6 +464,26 @@ func TestResolve_BackendFixture(t *testing.T) {
 	}
 }
 
+func TestResolve_DesktopAppsFixture(t *testing.T) {
+	c, err := config.Load("../../examples/configs/desktop-apps.yaml")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	plan, err := config.Resolve(c, "../../examples/configs")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if len(plan.Steps) != 2 {
+		t.Fatalf("Steps len = %d, want 2", len(plan.Steps))
+	}
+	if plan.Steps[0].Cask != "iterm2" {
+		t.Errorf("Steps[0].Cask = %q, want iterm2", plan.Steps[0].Cask)
+	}
+	if plan.Steps[1].Cask != "bruno" {
+		t.Errorf("Steps[1].Cask = %q, want bruno", plan.Steps[1].Cask)
+	}
+}
+
 func TestResolve_FrontendFixture(t *testing.T) {
 	c, err := config.Load("../../examples/configs/frontend.yaml")
 	if err != nil {

@@ -120,11 +120,24 @@ Each step in a config declares a `type` that determines how it's installed and c
 
 | Type | Installs via | Auto-check | Explicit `check:` |
 |---|---|---|---|
-| `brew` | `brew install <formula>` | `brew list --formula <formula>` | Optional override (e.g., `command -v git`) |
+| `brew` | `brew install <formula>` | `brew list --formula <formula>` | Optional override |
+| `brew-cask` | `brew install --cask <cask>` | `brew list --cask <cask>` | Optional override |
 | `curl-pipe-sh` | `curl -fsSL <url> \| bash` | None | **Required** |
+| `git-clone` | `git clone <repo> <dest>` | Directory exists at `dest` | Not needed |
 | `shell` | User-provided `install:` command | None | **Required** |
 
 Every step is idempotent: the `check` command runs first, and if it exits 0 the install is skipped.
+
+Any step type can include `post_install:` — a list of shell commands that run after a successful install (skipped if the step was already installed):
+
+```yaml
+steps:
+  - name: Colima
+    type: brew
+    formula: colima
+    post_install:
+      - colima start --cpu 4 --memory 8
+```
 
 ## Commands
 
