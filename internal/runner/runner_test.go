@@ -275,3 +275,71 @@ func TestRunner_UserAbortsElevation(t *testing.T) {
 		t.Errorf("installCalls = %d, want 0 (no steps should run after abort)", inst.installCalls)
 	}
 }
+
+func TestRunner_DryRun_NoStepsWouldRun_Exits0(t *testing.T) {
+	inst := &recordingInstaller{checkInstalled: true}
+	reg := installer.Registry{"brew": inst}
+	w := &bufWriter{}
+
+	r := &runner.Runner{Registry: reg, Out: w, DryRun: true}
+	plan := makePlan(config.Step{Name: "jq", Type: "brew", Formula: "jq"})
+
+	err := r.Run(context.Background(), plan)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if inst.installCalls != 0 {
+		t.Errorf("installCalls = %d, want 0 (dry-run should never install)", inst.installCalls)
+	}
+	if !strings.Contains(w.b.String(), "already installed") {
+		t.Errorf("output should say already installed: %q", w.b.String())
+	}
+}
+
+func TestRunner_DryRun_StepsWouldRun_ReturnsErrDryRunPending(t *testing.T) {
+	inst := &recordingInstaller{checkInstalled: false}
+	reg := installer.Registry{"brew": inst}
+	w := &bufWriter{}
+
+	r := &runner.Runner{Registry: reg, Out: w, DryRun: true}
+	plan := makePlan(config.Step{Name: "jq", Type: "brew", Formula: "jq"})
+
+	err := r.Run(context.Background(), plan)
+	if err == nil {
+		t.Fatal("want ErrDryRunPending, got nil")
+	}
+	if !errors.Is(err, runner.ErrDryRunPending) {
+		t.Errorf("err = %v, want ErrDryRunPending", err)
+	}
+	if inst.installCalls != 0 {
+		t.Errorf("installCalls = %d, want 0 (dry-run should never install)", inst.installCalls)
+	}
+	if !strings.Contains(w.b.String(), "WOULD install") {
+		t.Errorf("output should say WOULD install: %q", w.b.String())
+	}
+}
+
+func TestRunner_DryRun_SkipsElevationAcquire(t *testing.T) {
+	inst := &recordingInstaller{checkInstalled: false}
+	reg := installer.Registry{"shell": inst}
+	prompter := elevation.NewFakePrompter()
+	w := &bufWriter{}
+
+	r := &runner.Runner{Registry: reg, Out: w, Prompter: prompter, DryRun: true}
+	plan := &config.ResolvedPlan{
+		Recipe: &config.Recipe{
+			Elevation: &config.Elevation{Message: "elevate"},
+		},
+		Steps: []config.Step{
+			{Name: "needs-elev", Type: "shell", Check: "false", Install: "true", RequiresElevation: true},
+		},
+	}
+
+	err := r.Run(context.Background(), plan)
+	if !errors.Is(err, runner.ErrDryRunPending) {
+		t.Fatalf("err = %v, want ErrDryRunPending", err)
+	}
+	if prompter.Calls() != 0 {
+		t.Errorf("prompter called %d times in dry-run, want 0", prompter.Calls())
+	}
+}

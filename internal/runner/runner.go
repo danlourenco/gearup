@@ -2,11 +2,14 @@
 // registered installer. It stops on the first error (fail-fast). When the
 // plan's Recipe declares an Elevation block and at least one step requires
 // elevation, the runner batches elevation-required steps after acquiring
-// confirmation from the user.
+// confirmation from the user. In dry-run mode the runner only calls each
+// step's Check and prints a plan, returning ErrDryRunPending if any step
+// would be installed.
 package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,6 +17,11 @@ import (
 	"gearup/internal/elevation"
 	"gearup/internal/installer"
 )
+
+// ErrDryRunPending is returned by Run when DryRun is true and at least one
+// step reports it would be installed. The CLI uses this to exit with code 10,
+// a CI-friendly signal that the machine is not fully provisioned.
+var ErrDryRunPending = errors.New("dry-run: one or more steps would install")
 
 // Writer is the minimal output surface the Runner needs.
 type Writer interface {
@@ -26,19 +34,48 @@ type Runner struct {
 	Registry installer.Registry
 	Out      Writer
 	Prompter elevation.Prompter // required if any step may require elevation
+	DryRun   bool               // when true, only checks run; no installs
 }
 
-// expiryWarnThreshold is how soon before the elevation window ends we
-// print a "running low" warning.
 const expiryWarnThreshold = 30 * time.Second
 
-// Run walks plan.Steps. If the Recipe has an Elevation block AND at least
-// one step has RequiresElevation:true, elevation is acquired once up front,
-// then elevation-required steps run back-to-back, then the remaining steps.
-// Otherwise all steps run in declared order.
+// Run walks plan.Steps. See package doc for the modes.
 func (r *Runner) Run(ctx context.Context, plan *config.ResolvedPlan) error {
-	elevSteps, regSteps := partition(plan)
+	if r.DryRun {
+		return r.runDryRun(ctx, plan)
+	}
+	return r.runLive(ctx, plan)
+}
 
+func (r *Runner) runDryRun(ctx context.Context, plan *config.ResolvedPlan) error {
+	total := len(plan.Steps)
+	willInstall := 0
+	for i, step := range plan.Steps {
+		idx := i + 1
+		inst, err := r.Registry.Get(step.Type)
+		if err != nil {
+			return fmt.Errorf("step %d (%s): %w", idx, step.Name, err)
+		}
+		installed, err := inst.Check(ctx, step)
+		if err != nil {
+			return fmt.Errorf("step %d (%s) check failed: %w", idx, step.Name, err)
+		}
+		if installed {
+			r.Out.Printf("[%d/%d] %s: already installed\n", idx, total, step.Name)
+		} else {
+			r.Out.Printf("[%d/%d] %s: WOULD install\n", idx, total, step.Name)
+			willInstall++
+		}
+	}
+	r.Out.Printf("\nSummary: %d to install · %d already installed\n", willInstall, total-willInstall)
+	if willInstall > 0 {
+		return ErrDryRunPending
+	}
+	return nil
+}
+
+func (r *Runner) runLive(ctx context.Context, plan *config.ResolvedPlan) error {
+	elevSteps, regSteps := partition(plan)
 	openWindow := len(elevSteps) > 0 &&
 		plan.Recipe != nil &&
 		plan.Recipe.Elevation != nil
@@ -73,8 +110,6 @@ func (r *Runner) Run(ctx context.Context, plan *config.ResolvedPlan) error {
 }
 
 // Write satisfies io.Writer so elevation.Acquire can print its banner.
-// It delegates to r.Out if it satisfies io.Writer (which bufWriter and
-// stdPrinter do), otherwise falls back to Printf.
 func (r *Runner) Write(p []byte) (int, error) {
 	if w, ok := r.Out.(interface {
 		Write(p []byte) (int, error)
@@ -90,9 +125,6 @@ type indexedStep struct {
 	step config.Step
 }
 
-// partition splits plan.Steps into elevation-required and regular groups,
-// preserving declared order within each group. Indexes are 0-based and
-// preserved for consistent [i/total] display.
 func partition(plan *config.ResolvedPlan) (elev, reg []indexedStep) {
 	for i, s := range plan.Steps {
 		if s.RequiresElevation {
@@ -104,7 +136,6 @@ func partition(plan *config.ResolvedPlan) (elev, reg []indexedStep) {
 	return
 }
 
-// runStep executes one step against its registered installer.
 func (r *Runner) runStep(ctx context.Context, i int, step config.Step, total int) error {
 	idx := i + 1
 	inst, err := r.Registry.Get(step.Type)
