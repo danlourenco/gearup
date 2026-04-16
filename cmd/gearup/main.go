@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"gearup/internal/config"
 	"gearup/internal/elevation"
 	gearexec "gearup/internal/exec"
 	"gearup/internal/installer"
@@ -18,7 +19,6 @@ import (
 	"gearup/internal/installer/curlpipe"
 	installshell "gearup/internal/installer/shell"
 	gearlog "gearup/internal/log"
-	"gearup/internal/recipe"
 	"gearup/internal/runner"
 	"gearup/internal/ui"
 )
@@ -37,51 +37,51 @@ func main() {
 }
 
 func runCmd() *cobra.Command {
-	var recipePath string
+	var configPath string
 	var dryRun, yes bool
 	cmd := &cobra.Command{
 		Use:   "run",
-		Short: "Execute a provisioning recipe",
+		Short: "Execute a provisioning config",
 		RunE: func(c *cobra.Command, args []string) error {
-			return execute(recipePath, dryRun, yes)
+			return execute(configPath, dryRun, yes)
 		},
 	}
-	cmd.Flags().StringVar(&recipePath, "recipe", "", "path to recipe YAML (omit to pick interactively)")
+	cmd.Flags().StringVar(&configPath, "config", "", "path to config YAML (omit to pick interactively)")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "resolve checks without installing; exit 10 if anything would run")
 	cmd.Flags().BoolVar(&yes, "yes", false, "auto-approve elevation confirmations (for scripted use)")
 	return cmd
 }
 
 func planCmd() *cobra.Command {
-	var recipePath string
+	var configPath string
 	cmd := &cobra.Command{
 		Use:   "plan",
 		Short: "Alias for `run --dry-run`",
 		RunE: func(c *cobra.Command, args []string) error {
-			return execute(recipePath, true, true)
+			return execute(configPath, true, true)
 		},
 	}
-	cmd.Flags().StringVar(&recipePath, "recipe", "", "path to recipe YAML (omit to pick interactively)")
+	cmd.Flags().StringVar(&configPath, "config", "", "path to config YAML (omit to pick interactively)")
 	return cmd
 }
 
-func execute(recipePath string, dryRun, yes bool) error {
+func execute(configPath string, dryRun, yes bool) error {
 	if runtime.GOOS != "darwin" {
 		fmt.Fprintln(os.Stderr, "gearup currently supports macOS only")
 		os.Exit(4)
 	}
 
-	// If no recipe specified, try to discover and pick one interactively.
-	if recipePath == "" {
+	// If no config specified, try to discover and pick one interactively.
+	if configPath == "" {
 		if !isTerminal(os.Stdin) {
-			fmt.Fprintln(os.Stderr, "no --recipe specified and stdin is not a terminal; cannot show picker")
+			fmt.Fprintln(os.Stderr, "no --config specified and stdin is not a terminal; cannot show picker")
 			os.Exit(3)
 		}
 		picked, err := discoverAndPick()
 		if err != nil {
 			return err
 		}
-		recipePath = picked
+		configPath = picked
 	}
 
 	// TTY guard: interactive runs (non-dry-run, non-yes) require a terminal.
@@ -90,15 +90,15 @@ func execute(recipePath string, dryRun, yes bool) error {
 		os.Exit(3)
 	}
 
-	absRecipe, err := filepath.Abs(recipePath)
+	absConfig, err := filepath.Abs(configPath)
 	if err != nil {
 		return err
 	}
-	rec, err := recipe.LoadRecipe(absRecipe)
+	rec, err := config.Load(absConfig)
 	if err != nil {
 		return err
 	}
-	plan, err := recipe.Resolve(rec, filepath.Dir(absRecipe))
+	plan, err := config.Resolve(rec, filepath.Dir(absConfig))
 	if err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ func execute(recipePath string, dryRun, yes bool) error {
 		DryRun:   dryRun,
 	}
 
-	header := "RECIPE"
+	header := "CONFIG"
 	if dryRun {
 		header = "PLAN (dry-run)"
 	}
@@ -160,26 +160,26 @@ func execute(recipePath string, dryRun, yes bool) error {
 	return nil
 }
 
-// discoverAndPick scans well-known directories for recipe files and
+// discoverAndPick scans well-known directories for config files and
 // prompts the user to select one via Huh.
 func discoverAndPick() (string, error) {
 	var dirs []string
 
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		dirs = append(dirs, filepath.Join(xdg, "gearup", "recipes"))
+		dirs = append(dirs, filepath.Join(xdg, "gearup", "configs"))
 	} else if home, err := os.UserHomeDir(); err == nil {
-		dirs = append(dirs, filepath.Join(home, ".config", "gearup", "recipes"))
+		dirs = append(dirs, filepath.Join(home, ".config", "gearup", "configs"))
 	}
 
 	if cwd, err := os.Getwd(); err == nil {
-		dirs = append(dirs, filepath.Join(cwd, "examples", "recipes"))
+		dirs = append(dirs, filepath.Join(cwd, "examples", "configs"))
 	}
 
-	entries, err := ui.DiscoverRecipes(dirs)
+	entries, err := ui.DiscoverConfigs(dirs)
 	if err != nil {
 		return "", err
 	}
-	picked, err := ui.PickRecipe(entries)
+	picked, err := ui.PickConfig(entries)
 	if err != nil {
 		return "", err
 	}

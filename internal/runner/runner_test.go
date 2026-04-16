@@ -157,7 +157,7 @@ func TestRunner_AcquiresElevationWhenNeeded(t *testing.T) {
 	}
 
 	plan := &config.ResolvedPlan{
-		Recipe: &config.Recipe{
+		Config: &config.Config{
 			Name: "Backend",
 			Elevation: &config.Elevation{
 				Message:  "Please elevate",
@@ -197,7 +197,7 @@ func TestRunner_ElevationStepsRunBeforeRegular(t *testing.T) {
 
 	r := &runner.Runner{Registry: reg, Out: &bufWriter{}, Prompter: prompter}
 	plan := &config.ResolvedPlan{
-		Recipe: &config.Recipe{
+		Config: &config.Config{
 			Elevation: &config.Elevation{Message: "elevate"},
 		},
 		Steps: []config.Step{
@@ -235,7 +235,7 @@ func TestRunner_NoElevationBlock_RunsInDeclaredOrder(t *testing.T) {
 
 	r := &runner.Runner{Registry: reg, Out: &bufWriter{}, Prompter: prompter}
 	plan := &config.ResolvedPlan{
-		Recipe: &config.Recipe{}, // No Elevation block.
+		Config: &config.Config{}, // No Elevation block.
 		Steps: []config.Step{
 			{Name: "first", Type: "brew", Formula: "jq", RequiresElevation: true},
 			{Name: "second", Type: "brew", Formula: "git"},
@@ -262,7 +262,7 @@ func TestRunner_UserAbortsElevation(t *testing.T) {
 
 	r := &runner.Runner{Registry: reg, Out: &bufWriter{}, Prompter: prompter}
 	plan := &config.ResolvedPlan{
-		Recipe: &config.Recipe{Elevation: &config.Elevation{Message: "elevate"}},
+		Config: &config.Config{Elevation: &config.Elevation{Message: "elevate"}},
 		Steps: []config.Step{
 			{Name: "needs-elev", Type: "shell", Check: "false", Install: "true", RequiresElevation: true},
 		},
@@ -327,7 +327,7 @@ func TestRunner_DryRun_SkipsElevationAcquire(t *testing.T) {
 
 	r := &runner.Runner{Registry: reg, Out: w, Prompter: prompter, DryRun: true}
 	plan := &config.ResolvedPlan{
-		Recipe: &config.Recipe{
+		Config: &config.Config{
 			Elevation: &config.Elevation{Message: "elevate"},
 		},
 		Steps: []config.Step{
@@ -353,7 +353,7 @@ func TestRunner_ElevationBannerSuppressedWhenAllElevStepsInstalled(t *testing.T)
 
 	r := &runner.Runner{Registry: reg, Out: w, Prompter: prompter}
 	plan := &config.ResolvedPlan{
-		Recipe: &config.Recipe{
+		Config: &config.Config{
 			Elevation: &config.Elevation{Message: "elevate now"},
 		},
 		Steps: []config.Step{

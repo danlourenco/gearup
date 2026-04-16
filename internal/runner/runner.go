@@ -83,7 +83,7 @@ func (r *Runner) runLive(ctx context.Context, plan *config.ResolvedPlan) error {
 
 	// Pre-check: do any elevation-required steps actually need to run?
 	needsElevation := false
-	if len(elevSteps) > 0 && plan.Recipe != nil && plan.Recipe.Elevation != nil {
+	if len(elevSteps) > 0 && plan.Config != nil && plan.Config.Elevation != nil {
 		for _, ix := range elevSteps {
 			inst, err := r.Registry.Get(ix.step.Type)
 			if err != nil {
@@ -101,7 +101,7 @@ func (r *Runner) runLive(ctx context.Context, plan *config.ResolvedPlan) error {
 	}
 
 	if needsElevation {
-		timer, err := elevation.Acquire(ctx, plan.Recipe.Elevation, r.Prompter, r)
+		timer, err := elevation.Acquire(ctx, plan.Config.Elevation, r.Prompter, r)
 		if err != nil {
 			return err
 		}

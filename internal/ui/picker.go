@@ -1,5 +1,5 @@
 // Package ui provides interactive terminal elements backed by the Charm
-// ecosystem: recipe picker (Huh), plan preview (Lip Gloss), and execution
+// ecosystem: config picker (Huh), plan preview (Lip Gloss), and execution
 // step printer.
 package ui
 
@@ -12,19 +12,19 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// RecipeEntry is a discovered recipe file with its parsed metadata.
-type RecipeEntry struct {
+// ConfigEntry is a discovered config file with its parsed metadata.
+type ConfigEntry struct {
 	Path        string
 	Name        string
 	Description string
 }
 
-// DiscoverRecipes scans dirs for *.yaml files, parses their name and
+// DiscoverConfigs scans dirs for *.yaml files, parses their name and
 // description fields, and returns a deduplicated list. Missing directories
 // are silently skipped.
-func DiscoverRecipes(dirs []string) ([]RecipeEntry, error) {
+func DiscoverConfigs(dirs []string) ([]ConfigEntry, error) {
 	seen := map[string]bool{}
-	var entries []RecipeEntry
+	var entries []ConfigEntry
 
 	for _, dir := range dirs {
 		matches, err := filepath.Glob(filepath.Join(dir, "*.yaml"))
@@ -40,7 +40,7 @@ func DiscoverRecipes(dirs []string) ([]RecipeEntry, error) {
 				continue
 			}
 			seen[abs] = true
-			entry, err := parseRecipeEntry(abs)
+			entry, err := parseConfigEntry(abs)
 			if err != nil {
 				continue
 			}
@@ -50,30 +50,30 @@ func DiscoverRecipes(dirs []string) ([]RecipeEntry, error) {
 	return entries, nil
 }
 
-func parseRecipeEntry(path string) (RecipeEntry, error) {
+func parseConfigEntry(path string) (ConfigEntry, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return RecipeEntry{}, err
+		return ConfigEntry{}, err
 	}
 	var meta struct {
 		Name        string `yaml:"name"`
 		Description string `yaml:"description"`
 	}
 	if err := yaml.Unmarshal(data, &meta); err != nil {
-		return RecipeEntry{}, err
+		return ConfigEntry{}, err
 	}
 	if meta.Name == "" {
 		meta.Name = filepath.Base(path)
 	}
-	return RecipeEntry{Path: path, Name: meta.Name, Description: meta.Description}, nil
+	return ConfigEntry{Path: path, Name: meta.Name, Description: meta.Description}, nil
 }
 
-// PickRecipe shows an interactive Huh select for the given entries.
+// PickConfig shows an interactive Huh select for the given entries.
 // If exactly one entry exists, it is returned without prompting.
 // Returns the selected entry or an error if the user aborts.
-func PickRecipe(entries []RecipeEntry) (RecipeEntry, error) {
+func PickConfig(entries []ConfigEntry) (ConfigEntry, error) {
 	if len(entries) == 0 {
-		return RecipeEntry{}, fmt.Errorf("no recipes found; pass --recipe <path> explicitly")
+		return ConfigEntry{}, fmt.Errorf("no configs found; pass --config <path> explicitly")
 	}
 	if len(entries) == 1 {
 		return entries[0], nil
@@ -90,12 +90,12 @@ func PickRecipe(entries []RecipeEntry) (RecipeEntry, error) {
 
 	var selected int
 	err := huh.NewSelect[int]().
-		Title("Which recipe?").
+		Title("Which config?").
 		Options(options...).
 		Value(&selected).
 		Run()
 	if err != nil {
-		return RecipeEntry{}, fmt.Errorf("recipe picker: %w", err)
+		return ConfigEntry{}, fmt.Errorf("config picker: %w", err)
 	}
 	return entries[selected], nil
 }
