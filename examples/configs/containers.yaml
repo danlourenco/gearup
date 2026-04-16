@@ -3,16 +3,11 @@ name: containers
 description: "Local container runtime + tooling (Docker CLI, Compose plugin, Colima)"
 
 steps:
-  # Docker CLI is commonly pre-installed from Docker Desktop.
   - name: Docker CLI
     type: brew
     formula: docker
     check: command -v docker
 
-  # Docker Compose v2 installed as a Docker CLI plugin, per
-  # https://docs.docker.com/compose/install/ "Install the plugin manually".
-  # This is the path for environments that can't use Docker Desktop (licensing)
-  # and run an alternative runtime like Colima.
   - name: Docker Compose (CLI plugin)
     type: shell
     check: docker compose version >/dev/null 2>&1

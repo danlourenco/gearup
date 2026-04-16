@@ -11,8 +11,6 @@ steps:
     type: brew
     formula: aws-iam-authenticator
 
-  # Canonical brew formula is kubernetes-cli; `kubectl` is an install-time alias
-  # that breaks idempotency for `brew list --formula`. Use the canonical name.
   - name: kubectl
     type: brew
     formula: kubernetes-cli

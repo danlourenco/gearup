@@ -355,3 +355,89 @@ extends:
 		t.Error("want error for missing config, got nil")
 	}
 }
+
+func TestResolve_BackendFixture(t *testing.T) {
+	c, err := config.Load("../../examples/configs/backend.yaml")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	plan, err := config.Resolve(c, "../../examples/configs")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got := len(plan.Steps); got != 12 {
+		t.Fatalf("Steps len = %d, want 12", got)
+	}
+	if plan.Steps[0].Name != "Homebrew" || plan.Steps[0].Type != "curl-pipe-sh" {
+		t.Errorf("Steps[0] = %+v, want Homebrew curl-pipe-sh", plan.Steps[0])
+	}
+	if plan.Steps[11].Name != "nvm" || plan.Steps[11].Type != "curl-pipe-sh" {
+		t.Errorf("Steps[11] = %+v, want nvm curl-pipe-sh", plan.Steps[11])
+	}
+	if c.Elevation == nil {
+		t.Fatal("backend config has no Elevation block")
+	}
+
+	// kubectl uses canonical formula
+	var kubectl *config.Step
+	for i := range plan.Steps {
+		if plan.Steps[i].Name == "kubectl" {
+			kubectl = &plan.Steps[i]
+			break
+		}
+	}
+	if kubectl == nil {
+		t.Fatal("did not find kubectl step")
+	}
+	if kubectl.Formula != "kubernetes-cli" {
+		t.Errorf("kubectl.Formula = %q, want kubernetes-cli", kubectl.Formula)
+	}
+
+	// Docker Compose is shell type
+	var compose *config.Step
+	for i := range plan.Steps {
+		if plan.Steps[i].Name == "Docker Compose (CLI plugin)" {
+			compose = &plan.Steps[i]
+			break
+		}
+	}
+	if compose == nil {
+		t.Fatal("did not find Docker Compose step")
+	}
+	if compose.Type != "shell" {
+		t.Errorf("compose.Type = %q, want shell", compose.Type)
+	}
+
+	// JVM symlink requires elevation
+	var jvmLink *config.Step
+	for i := range plan.Steps {
+		if plan.Steps[i].Name == "Link OpenJDK 21 for system Java discovery" {
+			jvmLink = &plan.Steps[i]
+			break
+		}
+	}
+	if jvmLink == nil {
+		t.Fatal("did not find JVM symlink step")
+	}
+	if !jvmLink.RequiresElevation {
+		t.Error("jvm symlink should have RequiresElevation:true")
+	}
+}
+
+func TestResolve_FrontendFixture(t *testing.T) {
+	c, err := config.Load("../../examples/configs/frontend.yaml")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	plan, err := config.Resolve(c, "../../examples/configs")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got := len(plan.Steps); got != 4 {
+		t.Fatalf("Steps len = %d, want 4", got)
+	}
+	// Last step is nvm
+	if plan.Steps[3].Name != "nvm" {
+		t.Errorf("Steps[3] = %q, want nvm", plan.Steps[3].Name)
+	}
+}

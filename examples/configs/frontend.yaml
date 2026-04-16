@@ -5,9 +5,6 @@ description: "macOS developer toolchain for frontend work (Node + core CLI)"
 platform:
   os: [darwin]
 
-ingredient_sources:
-  - path: ../ingredients
-
-ingredients:
+extends:
   - base
   - node

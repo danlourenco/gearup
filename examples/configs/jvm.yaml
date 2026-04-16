@@ -7,10 +7,6 @@ steps:
     type: brew
     formula: openjdk@21
 
-  # The openjdk@21 formula is keg-only — it's not symlinked into
-  # /opt/homebrew, and the system's /usr/libexec/java_home doesn't find
-  # it. Link it into /Library/Java/JavaVirtualMachines/ so java tooling
-  # discovers it. This write requires admin permissions.
   - name: Link OpenJDK 21 for system Java discovery
     type: shell
     requires_elevation: true
