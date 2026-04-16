@@ -1,6 +1,6 @@
 version: 1
 name: base
-description: "Homebrew + universal core CLI tools (git, jq)"
+description: "Homebrew, core CLI tools, and standard desktop apps"
 
 steps:
   - name: Homebrew
@@ -16,3 +16,11 @@ steps:
   - name: jq
     type: brew
     formula: jq
+
+  - name: iTerm2
+    type: brew-cask
+    cask: iterm2
+
+  - name: Bruno
+    type: brew-cask
+    cask: bruno

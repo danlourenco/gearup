@@ -405,14 +405,18 @@ func TestResolve_BackendFixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if got := len(plan.Steps); got != 12 {
-		t.Fatalf("Steps len = %d, want 12", got)
+	if got := len(plan.Steps); got != 14 {
+		t.Fatalf("Steps len = %d, want 14", got)
 	}
 	if plan.Steps[0].Name != "Homebrew" || plan.Steps[0].Type != "curl-pipe-sh" {
 		t.Errorf("Steps[0] = %+v, want Homebrew curl-pipe-sh", plan.Steps[0])
 	}
-	if plan.Steps[11].Name != "nvm" || plan.Steps[11].Type != "curl-pipe-sh" {
-		t.Errorf("Steps[11] = %+v, want nvm curl-pipe-sh", plan.Steps[11])
+	// iTerm2 and Bruno are in base (indices 3, 4); nvm is last (index 13)
+	if plan.Steps[3].Cask != "iterm2" {
+		t.Errorf("Steps[3].Cask = %q, want iterm2", plan.Steps[3].Cask)
+	}
+	if plan.Steps[13].Name != "nvm" || plan.Steps[13].Type != "curl-pipe-sh" {
+		t.Errorf("Steps[13] = %+v, want nvm curl-pipe-sh", plan.Steps[13])
 	}
 	if c.Elevation == nil {
 		t.Fatal("backend config has no Elevation block")
@@ -493,11 +497,17 @@ func TestResolve_FrontendFixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if got := len(plan.Steps); got != 4 {
-		t.Fatalf("Steps len = %d, want 4", got)
+	if got := len(plan.Steps); got != 6 {
+		t.Fatalf("Steps len = %d, want 6", got)
 	}
-	// Last step is nvm
-	if plan.Steps[3].Name != "nvm" {
-		t.Errorf("Steps[3] = %q, want nvm", plan.Steps[3].Name)
+	// base includes iTerm2+Bruno (indices 3,4); nvm is last (index 5)
+	if plan.Steps[3].Cask != "iterm2" {
+		t.Errorf("Steps[3].Cask = %q, want iterm2", plan.Steps[3].Cask)
+	}
+	if plan.Steps[4].Cask != "bruno" {
+		t.Errorf("Steps[4].Cask = %q, want bruno", plan.Steps[4].Cask)
+	}
+	if plan.Steps[5].Name != "nvm" {
+		t.Errorf("Steps[5] = %q, want nvm", plan.Steps[5].Name)
 	}
 }
