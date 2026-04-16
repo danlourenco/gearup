@@ -17,10 +17,14 @@ steps:
     type: brew
     formula: jq
 
+  # Desktop apps — check /Applications/ so we skip if installed
+  # from any source (brew, direct download, MDM, etc.)
   - name: iTerm2
     type: brew-cask
     cask: iterm2
+    check: test -d "/Applications/iTerm.app"
 
   - name: Bruno
     type: brew-cask
     cask: bruno
+    check: test -d "/Applications/Bruno.app"
