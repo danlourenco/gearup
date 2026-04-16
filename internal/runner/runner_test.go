@@ -314,8 +314,8 @@ func TestRunner_DryRun_StepsWouldRun_ReturnsErrDryRunPending(t *testing.T) {
 	if inst.installCalls != 0 {
 		t.Errorf("installCalls = %d, want 0 (dry-run should never install)", inst.installCalls)
 	}
-	if !strings.Contains(w.b.String(), "WOULD install") {
-		t.Errorf("output should say WOULD install: %q", w.b.String())
+	if !strings.Contains(w.b.String(), "will install") {
+		t.Errorf("output should say will install: %q", w.b.String())
 	}
 }
 
@@ -341,5 +341,33 @@ func TestRunner_DryRun_SkipsElevationAcquire(t *testing.T) {
 	}
 	if prompter.Calls() != 0 {
 		t.Errorf("prompter called %d times in dry-run, want 0", prompter.Calls())
+	}
+}
+
+func TestRunner_ElevationBannerSuppressedWhenAllElevStepsInstalled(t *testing.T) {
+	inst := &recordingInstaller{checkInstalled: true}
+	reg := installer.Registry{"shell": inst}
+	prompter := elevation.NewFakePrompter()
+	prompter.Result = true
+	w := &bufWriter{}
+
+	r := &runner.Runner{Registry: reg, Out: w, Prompter: prompter}
+	plan := &config.ResolvedPlan{
+		Recipe: &config.Recipe{
+			Elevation: &config.Elevation{Message: "elevate now"},
+		},
+		Steps: []config.Step{
+			{Name: "elev-step", Type: "shell", Check: "true", Install: "true", RequiresElevation: true},
+		},
+	}
+
+	if err := r.Run(context.Background(), plan); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if prompter.Calls() != 0 {
+		t.Errorf("prompter called %d times, want 0 (banner should be suppressed)", prompter.Calls())
+	}
+	if strings.Contains(w.b.String(), "elevate now") {
+		t.Errorf("banner message should NOT appear: %q", w.b.String())
 	}
 }

@@ -1,10 +1,5 @@
 // Package runner executes a ResolvedPlan by dispatching each step to its
-// registered installer. It stops on the first error (fail-fast). When the
-// plan's Recipe declares an Elevation block and at least one step requires
-// elevation, the runner batches elevation-required steps after acquiring
-// confirmation from the user. In dry-run mode the runner only calls each
-// step's Check and prints a plan, returning ErrDryRunPending if any step
-// would be installed.
+// registered installer. It stops on the first error (fail-fast).
 package runner
 
 import (
@@ -16,14 +11,14 @@ import (
 	"gearup/internal/config"
 	"gearup/internal/elevation"
 	"gearup/internal/installer"
+	"gearup/internal/ui"
 )
 
 // ErrDryRunPending is returned by Run when DryRun is true and at least one
-// step reports it would be installed. The CLI uses this to exit with code 10,
-// a CI-friendly signal that the machine is not fully provisioned.
+// step reports it would be installed.
 var ErrDryRunPending = errors.New("dry-run: one or more steps would install")
 
-// Writer is the minimal output surface the Runner needs.
+// Writer is the output surface for non-step messages (banner, summary).
 type Writer interface {
 	Printf(format string, args ...any)
 	Write(p []byte) (int, error)
@@ -33,13 +28,14 @@ type Writer interface {
 type Runner struct {
 	Registry installer.Registry
 	Out      Writer
-	Prompter elevation.Prompter // required if any step may require elevation
-	DryRun   bool               // when true, only checks run; no installs
+	Prompter elevation.Prompter
+	Printer  *ui.StepPrinter // if nil, falls back to plain Printf on Out
+	DryRun   bool
 }
 
 const expiryWarnThreshold = 30 * time.Second
 
-// Run walks plan.Steps. See package doc for the modes.
+// Run walks plan.Steps.
 func (r *Runner) Run(ctx context.Context, plan *config.ResolvedPlan) error {
 	if r.DryRun {
 		return r.runDryRun(ctx, plan)
@@ -49,7 +45,9 @@ func (r *Runner) Run(ctx context.Context, plan *config.ResolvedPlan) error {
 
 func (r *Runner) runDryRun(ctx context.Context, plan *config.ResolvedPlan) error {
 	total := len(plan.Steps)
+	var statuses []ui.StepStatus
 	willInstall := 0
+
 	for i, step := range plan.Steps {
 		idx := i + 1
 		inst, err := r.Registry.Get(step.Type)
@@ -60,14 +58,20 @@ func (r *Runner) runDryRun(ctx context.Context, plan *config.ResolvedPlan) error
 		if err != nil {
 			return fmt.Errorf("step %d (%s) check failed: %w", idx, step.Name, err)
 		}
-		if installed {
-			r.Out.Printf("[%d/%d] %s: already installed\n", idx, total, step.Name)
-		} else {
-			r.Out.Printf("[%d/%d] %s: WOULD install\n", idx, total, step.Name)
+		statuses = append(statuses, ui.StepStatus{
+			Index:             idx,
+			Total:             total,
+			Name:              step.Name,
+			Installed:         installed,
+			RequiresElevation: step.RequiresElevation,
+		})
+		if !installed {
 			willInstall++
 		}
 	}
-	r.Out.Printf("\nSummary: %d to install · %d already installed\n", willInstall, total-willInstall)
+
+	r.Out.Printf("%s", ui.RenderPreview(statuses))
+
 	if willInstall > 0 {
 		return ErrDryRunPending
 	}
@@ -76,11 +80,27 @@ func (r *Runner) runDryRun(ctx context.Context, plan *config.ResolvedPlan) error
 
 func (r *Runner) runLive(ctx context.Context, plan *config.ResolvedPlan) error {
 	elevSteps, regSteps := partition(plan)
-	openWindow := len(elevSteps) > 0 &&
-		plan.Recipe != nil &&
-		plan.Recipe.Elevation != nil
 
-	if openWindow {
+	// Pre-check: do any elevation-required steps actually need to run?
+	needsElevation := false
+	if len(elevSteps) > 0 && plan.Recipe != nil && plan.Recipe.Elevation != nil {
+		for _, ix := range elevSteps {
+			inst, err := r.Registry.Get(ix.step.Type)
+			if err != nil {
+				return fmt.Errorf("step %d (%s): %w", ix.idx+1, ix.step.Name, err)
+			}
+			installed, err := inst.Check(ctx, ix.step)
+			if err != nil {
+				return fmt.Errorf("step %d (%s) check failed: %w", ix.idx+1, ix.step.Name, err)
+			}
+			if !installed {
+				needsElevation = true
+				break
+			}
+		}
+	}
+
+	if needsElevation {
 		timer, err := elevation.Acquire(ctx, plan.Recipe.Elevation, r.Prompter, r)
 		if err != nil {
 			return err
@@ -101,6 +121,7 @@ func (r *Runner) runLive(ctx context.Context, plan *config.ResolvedPlan) error {
 		return nil
 	}
 
+	// No elevation needed — run in declared order.
 	for i, step := range plan.Steps {
 		if err := r.runStep(ctx, i, step, len(plan.Steps)); err != nil {
 			return err
@@ -142,19 +163,47 @@ func (r *Runner) runStep(ctx context.Context, i int, step config.Step, total int
 	if err != nil {
 		return fmt.Errorf("step %d (%s): %w", idx, step.Name, err)
 	}
-	r.Out.Printf("[%d/%d] %s: checking...\n", idx, total, step.Name)
+
+	if r.Printer != nil {
+		r.Printer.StartCheck(idx, total, step.Name)
+	} else {
+		r.Out.Printf("[%d/%d] %s: checking...\n", idx, total, step.Name)
+	}
+
 	installed, err := inst.Check(ctx, step)
 	if err != nil {
+		if r.Printer != nil {
+			r.Printer.FinishError(idx, total, step.Name, err.Error())
+		}
 		return fmt.Errorf("step %d (%s) check failed: %w", idx, step.Name, err)
 	}
 	if installed {
-		r.Out.Printf("[%d/%d] %s: already installed — skip\n", idx, total, step.Name)
+		if r.Printer != nil {
+			r.Printer.FinishSkip(idx, total, step.Name)
+		} else {
+			r.Out.Printf("[%d/%d] %s: already installed — skip\n", idx, total, step.Name)
+		}
 		return nil
 	}
-	r.Out.Printf("[%d/%d] %s: installing...\n", idx, total, step.Name)
+
+	start := time.Now()
+	if r.Printer != nil {
+		r.Printer.StartInstall(idx, total, step.Name)
+	} else {
+		r.Out.Printf("[%d/%d] %s: installing...\n", idx, total, step.Name)
+	}
+
 	if err := inst.Install(ctx, step); err != nil {
+		if r.Printer != nil {
+			r.Printer.FinishError(idx, total, step.Name, err.Error())
+		}
 		return fmt.Errorf("step %d (%s) install failed: %w", idx, step.Name, err)
 	}
-	r.Out.Printf("[%d/%d] %s: installed\n", idx, total, step.Name)
+
+	if r.Printer != nil {
+		r.Printer.FinishInstall(idx, total, step.Name, time.Since(start))
+	} else {
+		r.Out.Printf("[%d/%d] %s: installed\n", idx, total, step.Name)
+	}
 	return nil
 }
