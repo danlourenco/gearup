@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - run: go test ./...
+
+      - run: go vet ./...
+
+      - name: Build
+        run: go build -o gearup ./cmd/gearup
+
+      - name: Smoke test
+        run: ./gearup plan --config ./examples/configs/frontend.yaml
