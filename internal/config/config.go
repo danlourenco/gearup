@@ -1,49 +1,45 @@
-// Package config defines the data types for gearup recipes and ingredients.
-// It contains no I/O or resolution logic — just struct shapes and YAML tags.
+// Package config defines types for gearup configuration files and provides
+// loading and resolution. Every gearup YAML file has the same schema:
+// a Config can declare steps directly and/or extend other configs by name.
 package config
 
-import "time"
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
-// Recipe is the top-level entry point loaded from a recipe YAML file.
-// A recipe composes ingredients plus optional inline steps.
-type Recipe struct {
-	Version           int                `yaml:"version"`
-	Name              string             `yaml:"name"`
-	Description       string             `yaml:"description,omitempty"`
-	Platform          Platform           `yaml:"platform,omitempty"`
-	Elevation         *Elevation         `yaml:"elevation,omitempty"`
-	IngredientSources []IngredientSource `yaml:"ingredient_sources,omitempty"`
-	Ingredients       []string           `yaml:"ingredients,omitempty"`
-	Steps             []Step             `yaml:"steps,omitempty"`
+	"gopkg.in/yaml.v3"
+)
+
+// Config is a gearup configuration file. It can serve as both an entry point
+// (with platform/elevation) and a reusable building block (extended by other
+// configs). There is no distinction between the two — every file has the
+// same shape.
+type Config struct {
+	Version     int        `yaml:"version"`
+	Name        string     `yaml:"name"`
+	Description string     `yaml:"description,omitempty"`
+	Platform    Platform   `yaml:"platform,omitempty"`
+	Elevation   *Elevation `yaml:"elevation,omitempty"`
+	Sources     []Source   `yaml:"sources,omitempty"`
+	Extends     []string   `yaml:"extends,omitempty"`
+	Steps       []Step     `yaml:"steps,omitempty"`
 }
 
-// Platform constrains which OS/arch a recipe (or step) applies to.
+// Platform constrains which OS/arch a config applies to.
 type Platform struct {
 	OS   []string `yaml:"os,omitempty"`
 	Arch []string `yaml:"arch,omitempty"`
 }
 
-// IngredientSource declares a location where ingredients can be resolved from.
-type IngredientSource struct {
+// Source declares a directory where extended configs can be resolved from.
+type Source struct {
 	Path string `yaml:"path,omitempty"`
 }
 
-// Ingredient is a reusable bundle of steps loaded from an ingredient YAML file,
-// referenced by name from a recipe's `ingredients` list.
-type Ingredient struct {
-	Version     int    `yaml:"version"`
-	Name        string `yaml:"name"`
-	Description string `yaml:"description,omitempty"`
-	Steps       []Step `yaml:"steps"`
-}
-
-// Elevation describes a recipe-level request for admin permissions.
-// When a recipe has an Elevation block and at least one step declares
-// RequiresElevation: true, the runner shows the Message in a banner,
-// asks the user to confirm (assumed to have acquired elevation through
-// whatever mechanism their org provides), then runs the elevation-required
-// steps back-to-back. If Duration is non-zero, the runner warns if a
-// subsequent elevation step is about to begin when less than 30s remain.
+// Elevation describes a config-level request for admin permissions.
 type Elevation struct {
 	Message  string        `yaml:"message"`
 	Duration time.Duration `yaml:"duration,omitempty"`
@@ -57,7 +53,7 @@ type Step struct {
 	RequiresElevation bool     `yaml:"requires_elevation,omitempty"`
 	Platform          Platform `yaml:"platform,omitempty"`
 
-	// brew-specific
+	// brew
 	Formula string `yaml:"formula,omitempty"`
 
 	// curl-pipe-sh
@@ -65,13 +61,123 @@ type Step struct {
 	Shell string   `yaml:"shell,omitempty"`
 	Args  []string `yaml:"args,omitempty"`
 
-	// shell (raw)
+	// shell
 	Install string `yaml:"install,omitempty"`
 }
 
 // ResolvedPlan is a flattened, ordered list of steps produced by resolving
-// a recipe's ingredient references.
+// a config's extends references.
 type ResolvedPlan struct {
-	Recipe *Recipe
+	Config *Config
 	Steps  []Step
+}
+
+// Load reads and parses a config YAML file.
+func Load(path string) (*Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read config %s: %w", path, err)
+	}
+	var c Config
+	if err := yaml.Unmarshal(data, &c); err != nil {
+		return nil, fmt.Errorf("parse config %s: %w", path, err)
+	}
+	return &c, nil
+}
+
+// Resolve walks c.Extends recursively and flattens into a ResolvedPlan.
+// configDir is the directory of the config file; it is always prepended
+// to the search path so configs in the same directory can extend each
+// other without declaring sources.
+func Resolve(c *Config, configDir string) (*ResolvedPlan, error) {
+	seen := map[string]bool{}
+	steps, err := resolveRecursive(c, configDir, seen)
+	if err != nil {
+		return nil, err
+	}
+	return &ResolvedPlan{Config: c, Steps: steps}, nil
+}
+
+func resolveRecursive(c *Config, configDir string, seen map[string]bool) ([]Step, error) {
+	searchPath := buildSearchPath(c, configDir)
+	var steps []Step
+
+	for _, name := range c.Extends {
+		extPath, err := findConfig(name, searchPath)
+		if err != nil {
+			return nil, err
+		}
+		abs, err := filepath.Abs(extPath)
+		if err != nil {
+			return nil, err
+		}
+		if seen[abs] {
+			return nil, fmt.Errorf("circular extends detected: %s", name)
+		}
+		seen[abs] = true
+
+		ext, err := Load(extPath)
+		if err != nil {
+			return nil, err
+		}
+		extDir := filepath.Dir(extPath)
+		extSteps, err := resolveRecursive(ext, extDir, seen)
+		if err != nil {
+			return nil, err
+		}
+		steps = append(steps, extSteps...)
+	}
+
+	steps = append(steps, c.Steps...)
+	return dedup(steps), nil
+}
+
+func buildSearchPath(c *Config, configDir string) []string {
+	// The config file's own directory is always first in the search path.
+	paths := []string{configDir}
+	for _, src := range c.Sources {
+		if src.Path == "" {
+			continue
+		}
+		expanded := expandHome(src.Path)
+		if !filepath.IsAbs(expanded) {
+			expanded = filepath.Join(configDir, expanded)
+		}
+		paths = append(paths, expanded)
+	}
+	return paths
+}
+
+func findConfig(name string, searchPath []string) (string, error) {
+	for _, dir := range searchPath {
+		candidate := filepath.Join(dir, name+".yaml")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("config %q not found in any source", name)
+}
+
+func expandHome(p string) string {
+	if strings.HasPrefix(p, "~/") {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			return filepath.Join(home, p[2:])
+		}
+	}
+	return p
+}
+
+// dedup removes steps with duplicate names, keeping the first occurrence.
+func dedup(steps []Step) []Step {
+	seen := map[string]bool{}
+	var out []Step
+	for _, s := range steps {
+		if seen[s.Name] {
+			continue
+		}
+		seen[s.Name] = true
+		out = append(out, s)
+	}
+	return out
 }

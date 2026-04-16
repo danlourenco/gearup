@@ -1,6 +1,8 @@
 package config_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -9,72 +11,68 @@ import (
 	"gearup/internal/config"
 )
 
-func TestRecipeUnmarshal(t *testing.T) {
+func TestConfigUnmarshal(t *testing.T) {
 	const src = `
 version: 1
-name: "Example Recipe"
+name: "Backend"
 description: "for tests"
 platform:
   os: [darwin]
   arch: [arm64, amd64]
-ingredient_sources:
-  - path: ~/src/my-ingredients
-ingredients:
-  - example-ingredient
+sources:
+  - path: ~/src/my-configs
+extends:
+  - base
+  - jvm
 steps:
   - name: "Inline step"
     type: brew
     formula: jq
 `
-	var r config.Recipe
-	if err := yaml.Unmarshal([]byte(src), &r); err != nil {
+	var c config.Config
+	if err := yaml.Unmarshal([]byte(src), &c); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if r.Version != 1 {
-		t.Errorf("Version = %d, want 1", r.Version)
+	if c.Version != 1 {
+		t.Errorf("Version = %d, want 1", c.Version)
 	}
-	if r.Name != "Example Recipe" {
-		t.Errorf("Name = %q, want %q", r.Name, "Example Recipe")
+	if c.Name != "Backend" {
+		t.Errorf("Name = %q", c.Name)
 	}
-	if got := r.Platform.OS; len(got) != 1 || got[0] != "darwin" {
-		t.Errorf("Platform.OS = %v, want [darwin]", got)
+	if got := c.Platform.OS; len(got) != 1 || got[0] != "darwin" {
+		t.Errorf("Platform.OS = %v", got)
 	}
-	if len(r.IngredientSources) != 1 || r.IngredientSources[0].Path != "~/src/my-ingredients" {
-		t.Errorf("IngredientSources = %+v", r.IngredientSources)
+	if len(c.Sources) != 1 || c.Sources[0].Path != "~/src/my-configs" {
+		t.Errorf("Sources = %+v", c.Sources)
 	}
-	if len(r.Ingredients) != 1 || r.Ingredients[0] != "example-ingredient" {
-		t.Errorf("Ingredients = %+v", r.Ingredients)
+	if len(c.Extends) != 2 || c.Extends[0] != "base" || c.Extends[1] != "jvm" {
+		t.Errorf("Extends = %v", c.Extends)
 	}
-	if len(r.Steps) != 1 || r.Steps[0].Type != "brew" || r.Steps[0].Formula != "jq" {
-		t.Errorf("Steps = %+v", r.Steps)
+	if len(c.Steps) != 1 || c.Steps[0].Formula != "jq" {
+		t.Errorf("Steps = %+v", c.Steps)
 	}
 }
 
-func TestIngredientUnmarshal(t *testing.T) {
+func TestElevationUnmarshal(t *testing.T) {
 	const src = `
 version: 1
-name: example-ingredient
-description: "test ingredient"
-steps:
-  - name: "Install jq"
-    type: brew
-    formula: jq
-  - name: "Install git"
-    type: brew
-    formula: git
+name: "Backend"
+elevation:
+  message: "Please elevate admin permissions now, then press Enter."
+  duration: 180s
 `
-	var r config.Ingredient
-	if err := yaml.Unmarshal([]byte(src), &r); err != nil {
+	var c config.Config
+	if err := yaml.Unmarshal([]byte(src), &c); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if r.Name != "example-ingredient" {
-		t.Errorf("Name = %q", r.Name)
+	if c.Elevation == nil {
+		t.Fatal("Elevation is nil")
 	}
-	if len(r.Steps) != 2 {
-		t.Fatalf("Steps len = %d, want 2", len(r.Steps))
+	if c.Elevation.Message == "" {
+		t.Error("Elevation.Message empty")
 	}
-	if r.Steps[0].Formula != "jq" || r.Steps[1].Formula != "git" {
-		t.Errorf("Steps = %+v", r.Steps)
+	if c.Elevation.Duration != 180*time.Second {
+		t.Errorf("Elevation.Duration = %v, want 180s", c.Elevation.Duration)
 	}
 }
 
@@ -96,48 +94,264 @@ steps:
       echo "installing thing"
       touch thing
 `
-	var r config.Recipe
-	if err := yaml.Unmarshal([]byte(src), &r); err != nil {
+	var c config.Config
+	if err := yaml.Unmarshal([]byte(src), &c); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if len(r.Steps) != 2 {
-		t.Fatalf("Steps len = %d, want 2", len(r.Steps))
+	if len(c.Steps) != 2 {
+		t.Fatalf("Steps len = %d, want 2", len(c.Steps))
 	}
-	cp := r.Steps[0]
+	cp := c.Steps[0]
 	if cp.Type != "curl-pipe-sh" || cp.URL != "https://example.com/install.sh" {
 		t.Errorf("curl-pipe step = %+v", cp)
 	}
 	if cp.Shell != "bash" {
-		t.Errorf("Shell = %q, want bash", cp.Shell)
+		t.Errorf("Shell = %q", cp.Shell)
 	}
 	if len(cp.Args) != 1 || cp.Args[0] != "--quiet" {
 		t.Errorf("Args = %v", cp.Args)
 	}
-	sh := r.Steps[1]
+	sh := c.Steps[1]
 	if sh.Type != "shell" || sh.Install == "" {
 		t.Errorf("shell step = %+v", sh)
 	}
 }
 
-func TestElevationUnmarshal(t *testing.T) {
-	const src = `
+// Helper to write fixture files.
+func writeFile(t *testing.T, dir, name, contents string) string {
+	t.Helper()
+	p := filepath.Join(dir, name)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(p, []byte(contents), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	return p
+}
+
+func TestLoad(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "test.yaml", `
+version: 1
+name: "Test"
+extends:
+  - sample
+`)
+	c, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if c.Name != "Test" {
+		t.Errorf("Name = %q", c.Name)
+	}
+	if len(c.Extends) != 1 || c.Extends[0] != "sample" {
+		t.Errorf("Extends = %v", c.Extends)
+	}
+}
+
+func TestResolve_ExtendsFromSameDir(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "base.yaml", `
+version: 1
+name: base
+steps:
+  - name: "Git"
+    type: brew
+    formula: git
+`)
+	path := writeFile(t, dir, "backend.yaml", `
 version: 1
 name: "Backend"
-elevation:
-  message: "Please elevate admin permissions now, then press Enter."
-  duration: 180s
-`
-	var r config.Recipe
-	if err := yaml.Unmarshal([]byte(src), &r); err != nil {
-		t.Fatalf("unmarshal: %v", err)
+extends:
+  - base
+steps:
+  - name: "jq"
+    type: brew
+    formula: jq
+`)
+	c, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
 	}
-	if r.Elevation == nil {
-		t.Fatal("Elevation is nil, want non-nil")
+	plan, err := config.Resolve(c, dir)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
 	}
-	if r.Elevation.Message == "" {
-		t.Error("Elevation.Message empty")
+	if len(plan.Steps) != 2 {
+		t.Fatalf("Steps len = %d, want 2", len(plan.Steps))
 	}
-	if r.Elevation.Duration != 180*time.Second {
-		t.Errorf("Elevation.Duration = %v, want 180s", r.Elevation.Duration)
+	if plan.Steps[0].Formula != "git" {
+		t.Errorf("Steps[0].Formula = %q, want git (from extended base)", plan.Steps[0].Formula)
+	}
+	if plan.Steps[1].Formula != "jq" {
+		t.Errorf("Steps[1].Formula = %q, want jq (inline)", plan.Steps[1].Formula)
+	}
+}
+
+func TestResolve_ExtendsFromDeclaredSource(t *testing.T) {
+	root := t.TempDir()
+	shared := filepath.Join(root, "shared")
+	writeFile(t, shared, "base.yaml", `
+version: 1
+name: base
+steps:
+  - name: "Git"
+    type: brew
+    formula: git
+`)
+	path := writeFile(t, root, "backend.yaml", `
+version: 1
+name: "Backend"
+sources:
+  - path: ./shared
+extends:
+  - base
+`)
+	c, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	plan, err := config.Resolve(c, root)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if len(plan.Steps) != 1 || plan.Steps[0].Formula != "git" {
+		t.Errorf("Steps = %+v", plan.Steps)
+	}
+}
+
+func TestResolve_TransitiveExtends(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "core.yaml", `
+version: 1
+name: core
+steps:
+  - name: "Homebrew"
+    type: curl-pipe-sh
+    url: https://example.com/install.sh
+    check: command -v brew
+`)
+	writeFile(t, dir, "base.yaml", `
+version: 1
+name: base
+extends:
+  - core
+steps:
+  - name: "Git"
+    type: brew
+    formula: git
+`)
+	path := writeFile(t, dir, "backend.yaml", `
+version: 1
+name: "Backend"
+extends:
+  - base
+steps:
+  - name: "jq"
+    type: brew
+    formula: jq
+`)
+	c, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	plan, err := config.Resolve(c, dir)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	// core(Homebrew) + base(Git) + backend(jq)
+	if len(plan.Steps) != 3 {
+		t.Fatalf("Steps len = %d, want 3", len(plan.Steps))
+	}
+	if plan.Steps[0].Name != "Homebrew" {
+		t.Errorf("Steps[0] = %q, want Homebrew (transitive from core)", plan.Steps[0].Name)
+	}
+	if plan.Steps[1].Name != "Git" {
+		t.Errorf("Steps[1] = %q, want Git (from base)", plan.Steps[1].Name)
+	}
+	if plan.Steps[2].Name != "jq" {
+		t.Errorf("Steps[2] = %q, want jq (inline)", plan.Steps[2].Name)
+	}
+}
+
+func TestResolve_CircularExtendsDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "a.yaml", `
+version: 1
+name: a
+extends: [b]
+`)
+	writeFile(t, dir, "b.yaml", `
+version: 1
+name: b
+extends: [a]
+`)
+	c, err := config.Load(filepath.Join(dir, "a.yaml"))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	_, err = config.Resolve(c, dir)
+	if err == nil {
+		t.Error("want error for circular extends, got nil")
+	}
+}
+
+func TestResolve_DeduplicatesByStepName(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "base.yaml", `
+version: 1
+name: base
+steps:
+  - name: "Git"
+    type: brew
+    formula: git
+`)
+	// backend extends base AND has its own Git step — should be deduped.
+	path := writeFile(t, dir, "backend.yaml", `
+version: 1
+name: "Backend"
+extends:
+  - base
+steps:
+  - name: "Git"
+    type: brew
+    formula: git-custom
+  - name: "jq"
+    type: brew
+    formula: jq
+`)
+	c, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	plan, err := config.Resolve(c, dir)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if len(plan.Steps) != 2 {
+		t.Fatalf("Steps len = %d, want 2 (Git deduped)", len(plan.Steps))
+	}
+	// First occurrence wins — base's Git, not backend's.
+	if plan.Steps[0].Formula != "git" {
+		t.Errorf("Steps[0].Formula = %q, want git (first occurrence from base)", plan.Steps[0].Formula)
+	}
+}
+
+func TestResolve_ConfigNotFound(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "backend.yaml", `
+version: 1
+name: "Backend"
+extends:
+  - does-not-exist
+`)
+	c, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	_, err = config.Resolve(c, dir)
+	if err == nil {
+		t.Error("want error for missing config, got nil")
 	}
 }
