@@ -16,7 +16,9 @@ import (
 	gearexec "gearup/internal/exec"
 	"gearup/internal/installer"
 	"gearup/internal/installer/brew"
+	"gearup/internal/installer/brewcask"
 	"gearup/internal/installer/curlpipe"
+	"gearup/internal/installer/gitclone"
 	installshell "gearup/internal/installer/shell"
 	gearlog "gearup/internal/log"
 	"gearup/internal/runner"
@@ -120,7 +122,9 @@ func execute(configPath string, dryRun, yes bool) error {
 
 	reg := installer.Registry{
 		"brew":         &brew.Installer{Runner: shellRunner},
+		"brew-cask":    &brewcask.Installer{Runner: shellRunner},
 		"curl-pipe-sh": &curlpipe.Installer{Runner: shellRunner},
+		"git-clone":    &gitclone.Installer{Runner: shellRunner},
 		"shell":        &installshell.Installer{Runner: shellRunner},
 	}
 
@@ -132,11 +136,12 @@ func execute(configPath string, dryRun, yes bool) error {
 	printer := ui.NewStepPrinter(os.Stdout)
 
 	r := &runner.Runner{
-		Registry: reg,
-		Out:      stdPrinter{},
-		Prompter: prompter,
-		Printer:  printer,
-		DryRun:   dryRun,
+		Registry:   reg,
+		Out:        stdPrinter{},
+		Prompter:   prompter,
+		Printer:    printer,
+		ExecRunner: shellRunner,
+		DryRun:     dryRun,
 	}
 
 	header := "CONFIG"
