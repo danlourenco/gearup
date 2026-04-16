@@ -44,7 +44,7 @@ func (i *Installer) Install(ctx context.Context, step config.Step) error {
 	if len(step.Args) > 0 {
 		cmd = fmt.Sprintf("%s -s -- %s", cmd, strings.Join(step.Args, " "))
 	}
-	res, err := i.Runner.Run(ctx, cmd)
+	res, err := i.Runner.RunQuiet(ctx, cmd)
 	if err != nil {
 		return err
 	}

@@ -155,6 +155,7 @@ func execute(recipePath string, dryRun, yes bool) error {
 	}
 	if !dryRun {
 		fmt.Println("\nDone.")
+		fmt.Printf("Log: %s\n", lf.Path())
 	}
 	return nil
 }

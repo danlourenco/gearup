@@ -32,7 +32,7 @@ func (i *Installer) Install(ctx context.Context, step config.Step) error {
 	if step.Install == "" {
 		return fmt.Errorf("shell step %q missing install command", step.Name)
 	}
-	res, err := i.Runner.Run(ctx, step.Install)
+	res, err := i.Runner.RunQuiet(ctx, step.Install)
 	if err != nil {
 		return err
 	}

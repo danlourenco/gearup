@@ -39,7 +39,7 @@ func (i *Installer) Install(ctx context.Context, step config.Step) error {
 		return fmt.Errorf("brew step %q missing formula", step.Name)
 	}
 	cmd := fmt.Sprintf("brew install %s", step.Formula)
-	res, err := i.Runner.Run(ctx, cmd)
+	res, err := i.Runner.RunQuiet(ctx, cmd)
 	if err != nil {
 		return err
 	}
