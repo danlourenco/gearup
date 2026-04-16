@@ -1,62 +1,208 @@
 # gearup
 
-Opinionated, open-source macOS developer-machine bootstrap CLI.
+An open-source, config-driven macOS developer-machine bootstrap CLI built with [Go](https://go.dev) and the [Charm](https://charm.sh) ecosystem.
 
-Status: Phase 4B — in development. Interactive recipe picker, styled plan preview, step-level progress rendering, smart elevation-banner suppression.
+Define your team's toolchain in a YAML recipe, run `gearup run`, and get a fully provisioned dev machine in minutes. Every step is idempotent — re-running skips what's already installed.
 
-See `docs/superpowers/specs/2026-04-15-gearup-design.md` for the design.
+## Quick start
 
-## Usage
+```bash
+# Build from source (requires Go 1.22+)
+go build -o gearup ./cmd/gearup
 
-    gearup run
+# Pick a recipe interactively
+./gearup run
 
-Discovers recipes in `$XDG_CONFIG_HOME/gearup/recipes/` and `./examples/recipes/`,
-and prompts you to pick one interactively. Or specify directly:
+# Or specify one directly
+./gearup run --recipe ./examples/recipes/backend.yaml
+```
 
-    gearup run --recipe ./examples/recipes/backend.yaml
+On first run you'll see an interactive picker listing discovered recipes. Select one, and gearup walks through each step with an animated progress indicator:
 
-Recipes compose ingredients. An ingredient is a reusable bundle of steps
-for one stack concern (e.g. JVM, containers, AWS/K8s). Example recipes
-for a `backend` and `frontend` role live in `examples/recipes/`, composed
-from shared ingredients in `examples/ingredients/`. Point `ingredient_sources`
-at your own path to share ingredients across recipes and teams.
+```
+RECIPE: Backend  (12 steps)
 
-### Elevation
+  ✓ [1/12] Homebrew  already installed
+  ✓ [2/12] Git  already installed
+  ⠋ [3/12] jq  installing... 2.1s
+  ✓ [3/12] jq  installed (3.6s)
+  ✓ [4/12] nvm  already installed
+  ...
 
-Steps that need admin permissions (e.g., writing to `/Library/...`) declare
-`requires_elevation: true`. A recipe can include a top-level `elevation:`
-block whose `message` is shown in a styled banner before such steps run —
-e.g., "Please elevate admin permissions now, then press Continue." gearup
-doesn't invoke elevation itself; it pauses and waits. If no `elevation:`
-block is set, steps that need sudo prompt for a password natively as they
-run.
+Done.
+Log: ~/.local/state/gearup/logs/20260415-211527-Backend.log
+```
 
-See `examples/recipes/backend.yaml` for a full example, and
-`examples/ingredients/jvm.yaml` for a step that requires elevation.
+## How it works
 
-### Preview a recipe without running it
+gearup uses two concepts:
 
-    gearup plan --recipe ./examples/recipes/backend.yaml
+**Recipes** are the entry point — a YAML file describing what your team needs. A recipe lists which *ingredients* to include, plus optional platform and elevation config.
 
-Runs every step's `check` and prints what would happen, without installing anything. Exits 0 if the machine is already provisioned, or 10 if any step would run (CI-friendly: assert your machine matches the recipe).
+**Ingredients** are reusable bundles of install steps for one stack concern (e.g., JVM, containers, AWS/K8s). Multiple recipes can share ingredients without duplication.
 
-### Scripted / non-interactive use
+```
+examples/
+├── recipes/
+│   ├── backend.yaml       ← includes: base, jvm, containers, aws-k8s, node
+│   └── frontend.yaml      ← includes: base, node
+└── ingredients/
+    ├── base.yaml           (Homebrew, Git, jq)
+    ├── jvm.yaml            (OpenJDK 21 + system symlink)
+    ├── containers.yaml     (Docker CLI, Compose plugin, Colima)
+    ├── aws-k8s.yaml        (AWS CLI, aws-iam-authenticator, kubectl)
+    └── node.yaml           (nvm)
+```
 
-    gearup run --recipe ./examples/recipes/backend.yaml --yes
+### Example recipe
 
-`--yes` auto-approves the elevation confirmation so CI / scripts don't block. Combine with `--dry-run` for non-destructive CI checks.
+```yaml
+# recipes/backend.yaml
+version: 1
+name: "Backend"
+description: "Full macOS developer toolchain for backend/infra work"
 
-### Log files
+platform:
+  os: [darwin]
 
-Every `gearup run` writes a log file at `$XDG_STATE_HOME/gearup/logs/<timestamp>-<recipe>.log` (falling back to `~/.local/state/gearup/logs/`). Check-command output is logged but not shown on the terminal; install-command output is both streamed live and mirrored to the log. On step failure, the log path is printed to stderr.
+ingredient_sources:
+  - path: ../ingredients
 
-Requires macOS. If Homebrew is not installed, the recipe's first step installs it via the official installer. Subsequent brew steps in the same run require `brew` on PATH — if Homebrew was just installed, open a new shell and re-run so PATH picks up `/opt/homebrew/bin` (or `/usr/local/bin` on Intel).
+ingredients:
+  - base
+  - jvm
+  - containers
+  - aws-k8s
+  - node
+```
 
-## Verifying a run
+### Example ingredient
 
-Idempotency check on any recipe:
+```yaml
+# ingredients/base.yaml
+version: 1
+name: base
+description: "Homebrew + universal core CLI tools (git, jq)"
 
-    ./gearup run --recipe ./examples/recipes/backend.yaml
-    ./gearup run --recipe ./examples/recipes/backend.yaml   # every step should skip
+steps:
+  - name: Homebrew
+    type: curl-pipe-sh
+    url: https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh
+    check: command -v brew
 
-All unit tests: `go test ./...`
+  - name: Git
+    type: brew
+    formula: git
+    check: command -v git    # skip if git exists from any source
+
+  - name: jq
+    type: brew
+    formula: jq
+```
+
+## Step types
+
+Each step in an ingredient declares a `type` that determines how it's installed and checked.
+
+| Type | Installs via | Auto-check | Explicit `check:` |
+|---|---|---|---|
+| `brew` | `brew install <formula>` | `brew list --formula <formula>` | Optional override (e.g., `command -v git`) |
+| `curl-pipe-sh` | `curl -fsSL <url> \| bash` | None | **Required** |
+| `shell` | User-provided `install:` command | None | **Required** |
+
+Every step is idempotent: the `check` command runs first, and if it exits 0 the install is skipped.
+
+## Commands
+
+```
+gearup run      [--recipe <path>] [--dry-run] [--yes]
+gearup plan     [--recipe <path>]
+gearup version
+```
+
+### `gearup run`
+
+Executes a recipe. Without `--recipe`, discovers recipes in `$XDG_CONFIG_HOME/gearup/recipes/` and `./examples/recipes/` and shows an interactive picker.
+
+### `gearup plan`
+
+Alias for `gearup run --dry-run`. Runs every step's check without installing anything. Prints a styled preview showing what would happen.
+
+Exit codes:
+- `0` — machine is fully provisioned (nothing would run)
+- `10` — one or more steps would install (CI-friendly: "machine not up to date")
+
+### Flags
+
+| Flag | Description |
+|---|---|
+| `--recipe <path>` | Path to recipe YAML. Omit to pick interactively. |
+| `--dry-run` | Check only, don't install. Exit 10 if anything would run. |
+| `--yes` | Auto-approve the elevation confirmation prompt (for scripted/CI use). |
+
+## Elevation
+
+Steps that need admin permissions declare `requires_elevation: true`. When a recipe includes an `elevation:` block, gearup shows a styled banner and waits for you to confirm before running those steps:
+
+```yaml
+elevation:
+  message: "Some steps need admin permissions. Elevate now, then press Continue."
+  duration: 180s    # advisory countdown
+```
+
+gearup never invokes elevation itself — it pauses and lets you acquire permissions through whatever mechanism your organization uses (MDM scripts, Touch ID, native sudo, etc.). If no `elevation:` block is set, steps that need sudo prompt natively.
+
+Smart suppression: if all elevation-required steps are already installed, the banner is skipped entirely.
+
+## Log files
+
+Every `gearup run` writes a log file at:
+
+```
+$XDG_STATE_HOME/gearup/logs/<timestamp>-<recipe>.log
+```
+
+(Falls back to `~/.local/state/gearup/logs/` if `XDG_STATE_HOME` is unset.)
+
+Check and install command output is captured here. The terminal stays clean — only step status lines and the log path are shown. On failure, the relevant captured output is printed inline alongside the log path.
+
+## Creating your own recipes
+
+1. Create an ingredients directory with one YAML file per stack concern.
+2. Create a recipe YAML that lists `ingredient_sources` (path to your ingredients) and `ingredients` (names of files to include, without `.yaml`).
+3. Run `gearup run --recipe <your-recipe.yaml>`.
+
+Ingredients can live anywhere — a local directory, a shared team repo, or alongside the recipe file. Point `ingredient_sources` at the path and gearup resolves by name.
+
+```yaml
+# my-team-recipe.yaml
+version: 1
+name: "My Team"
+ingredient_sources:
+  - path: ./my-ingredients
+  - path: ~/src/shared-ingredients
+ingredients:
+  - base
+  - my-custom-stack
+```
+
+## Building from source
+
+Requires Go 1.22 or later.
+
+```bash
+git clone https://github.com/danlourenco/gearup.git
+cd gearup
+go build -o gearup ./cmd/gearup
+./gearup version
+```
+
+## Running tests
+
+```bash
+go test ./...
+```
+
+## License
+
+[MIT](LICENSE)
