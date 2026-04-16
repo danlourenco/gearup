@@ -6,8 +6,21 @@ Define your team's toolchain in a YAML config, run `gearup run`, and get a fully
 
 ## Quick start
 
+### Install from GitHub releases (no Go required)
+
 ```bash
-# Build from source (requires Go 1.22+)
+# macOS (Apple Silicon)
+curl -fsSL https://github.com/danlourenco/gearup/releases/latest/download/gearup_darwin_arm64.tar.gz | tar xz
+sudo mv gearup /usr/local/bin/
+
+# macOS (Intel)
+curl -fsSL https://github.com/danlourenco/gearup/releases/latest/download/gearup_darwin_amd64.tar.gz | tar xz
+sudo mv gearup /usr/local/bin/
+```
+
+### Build from source (requires Go 1.22+)
+
+```bash
 go build -o gearup ./cmd/gearup
 
 # Pick a config interactively
