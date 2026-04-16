@@ -117,6 +117,46 @@ steps:
 	}
 }
 
+func TestStepUnmarshal_CaskGitClonePostInstall(t *testing.T) {
+	const src = `
+version: 1
+name: "Test"
+steps:
+  - name: "iTerm2"
+    type: brew-cask
+    cask: iterm2
+  - name: "Dotfiles"
+    type: git-clone
+    repo: https://github.com/example/dotfiles.git
+    dest: ~/.dotfiles
+    ref: main
+    post_install:
+      - ~/.dotfiles/install.sh
+`
+	var c config.Config
+	if err := yaml.Unmarshal([]byte(src), &c); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(c.Steps) != 2 {
+		t.Fatalf("Steps len = %d, want 2", len(c.Steps))
+	}
+	if c.Steps[0].Cask != "iterm2" {
+		t.Errorf("Steps[0].Cask = %q, want iterm2", c.Steps[0].Cask)
+	}
+	if c.Steps[1].Repo != "https://github.com/example/dotfiles.git" {
+		t.Errorf("Steps[1].Repo = %q", c.Steps[1].Repo)
+	}
+	if c.Steps[1].Dest != "~/.dotfiles" {
+		t.Errorf("Steps[1].Dest = %q", c.Steps[1].Dest)
+	}
+	if c.Steps[1].Ref != "main" {
+		t.Errorf("Steps[1].Ref = %q", c.Steps[1].Ref)
+	}
+	if len(c.Steps[1].PostInstall) != 1 || c.Steps[1].PostInstall[0] != "~/.dotfiles/install.sh" {
+		t.Errorf("Steps[1].PostInstall = %v", c.Steps[1].PostInstall)
+	}
+}
+
 // Helper to write fixture files.
 func writeFile(t *testing.T, dir, name, contents string) string {
 	t.Helper()

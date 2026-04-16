@@ -63,6 +63,17 @@ type Step struct {
 
 	// shell
 	Install string `yaml:"install,omitempty"`
+
+	// post_install — shell commands to run after a successful install
+	PostInstall []string `yaml:"post_install,omitempty"`
+
+	// brew-cask
+	Cask string `yaml:"cask,omitempty"`
+
+	// git-clone
+	Repo string `yaml:"repo,omitempty"`
+	Dest string `yaml:"dest,omitempty"`
+	Ref  string `yaml:"ref,omitempty"`
 }
 
 // ResolvedPlan is a flattened, ordered list of steps produced by resolving
