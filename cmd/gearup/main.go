@@ -20,9 +20,10 @@ import (
 	gearlog "gearup/internal/log"
 	"gearup/internal/recipe"
 	"gearup/internal/runner"
+	"gearup/internal/ui"
 )
 
-const version = "0.0.5-phase4a"
+const version = "0.0.6-phase4b"
 
 func main() {
 	root := &cobra.Command{
@@ -45,7 +46,7 @@ func runCmd() *cobra.Command {
 			return execute(recipePath, dryRun, yes)
 		},
 	}
-	cmd.Flags().StringVar(&recipePath, "recipe", "", "path to recipe YAML (required)")
+	cmd.Flags().StringVar(&recipePath, "recipe", "", "path to recipe YAML (omit to pick interactively)")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "resolve checks without installing; exit 10 if anything would run")
 	cmd.Flags().BoolVar(&yes, "yes", false, "auto-approve elevation confirmations (for scripted use)")
 	return cmd
@@ -60,7 +61,7 @@ func planCmd() *cobra.Command {
 			return execute(recipePath, true, true)
 		},
 	}
-	cmd.Flags().StringVar(&recipePath, "recipe", "", "path to recipe YAML (required)")
+	cmd.Flags().StringVar(&recipePath, "recipe", "", "path to recipe YAML (omit to pick interactively)")
 	return cmd
 }
 
@@ -69,12 +70,21 @@ func execute(recipePath string, dryRun, yes bool) error {
 		fmt.Fprintln(os.Stderr, "gearup currently supports macOS only")
 		os.Exit(4)
 	}
+
+	// If no recipe specified, try to discover and pick one interactively.
 	if recipePath == "" {
-		return fmt.Errorf("--recipe is required")
+		if !isTerminal(os.Stdin) {
+			fmt.Fprintln(os.Stderr, "no --recipe specified and stdin is not a terminal; cannot show picker")
+			os.Exit(3)
+		}
+		picked, err := discoverAndPick()
+		if err != nil {
+			return err
+		}
+		recipePath = picked
 	}
 
-	// TTY guard: interactive runs (non-dry-run, non-yes) require a terminal
-	// because the elevation confirm blocks on Huh.
+	// TTY guard: interactive runs (non-dry-run, non-yes) require a terminal.
 	if !dryRun && !yes && !isTerminal(os.Stdin) {
 		fmt.Fprintln(os.Stderr, "gearup requires an interactive terminal. Use --yes to bypass elevation prompts, or --dry-run to preview.")
 		os.Exit(3)
@@ -93,14 +103,13 @@ func execute(recipePath string, dryRun, yes bool) error {
 		return err
 	}
 
-	// Open a per-run log file for command output mirroring.
+	// Open a per-run log file.
 	lf, err := gearlog.Create(rec.Name)
 	if err != nil {
 		return err
 	}
 	defer lf.Close()
 
-	// Build the shared ShellRunner: stream to terminal, mirror to log.
 	shellRunner := &gearexec.ShellRunner{
 		StreamOut: os.Stdout,
 		StreamErr: os.Stderr,
@@ -118,10 +127,13 @@ func execute(recipePath string, dryRun, yes bool) error {
 		prompter = elevation.AutoApprovePrompter{}
 	}
 
+	printer := ui.NewStepPrinter(os.Stdout)
+
 	r := &runner.Runner{
 		Registry: reg,
 		Out:      stdPrinter{},
 		Prompter: prompter,
+		Printer:  printer,
 		DryRun:   dryRun,
 	}
 
@@ -137,7 +149,7 @@ func execute(recipePath string, dryRun, yes bool) error {
 		os.Exit(10)
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
+		fmt.Fprintln(os.Stderr, "\nerror:", err)
 		fmt.Fprintln(os.Stderr, "full log:", lf.Path())
 		os.Exit(1)
 	}
@@ -145,6 +157,32 @@ func execute(recipePath string, dryRun, yes bool) error {
 		fmt.Println("\nDone.")
 	}
 	return nil
+}
+
+// discoverAndPick scans well-known directories for recipe files and
+// prompts the user to select one via Huh.
+func discoverAndPick() (string, error) {
+	var dirs []string
+
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		dirs = append(dirs, filepath.Join(xdg, "gearup", "recipes"))
+	} else if home, err := os.UserHomeDir(); err == nil {
+		dirs = append(dirs, filepath.Join(home, ".config", "gearup", "recipes"))
+	}
+
+	if cwd, err := os.Getwd(); err == nil {
+		dirs = append(dirs, filepath.Join(cwd, "examples", "recipes"))
+	}
+
+	entries, err := ui.DiscoverRecipes(dirs)
+	if err != nil {
+		return "", err
+	}
+	picked, err := ui.PickRecipe(entries)
+	if err != nil {
+		return "", err
+	}
+	return picked.Path, nil
 }
 
 func versionCmd() *cobra.Command {
@@ -157,7 +195,6 @@ func versionCmd() *cobra.Command {
 	}
 }
 
-// isTerminal reports whether f is a character device (interactive TTY).
 func isTerminal(f *os.File) bool {
 	fi, err := f.Stat()
 	if err != nil {
@@ -166,7 +203,6 @@ func isTerminal(f *os.File) bool {
 	return (fi.Mode() & os.ModeCharDevice) != 0
 }
 
-// stdPrinter adapts os.Stdout to runner.Writer.
 type stdPrinter struct{}
 
 func (stdPrinter) Printf(format string, args ...any) { fmt.Printf(format, args...) }
