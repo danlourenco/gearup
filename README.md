@@ -14,6 +14,13 @@ curl -fsSL https://raw.githubusercontent.com/danlourenco/gearup/master/install.s
 
 Detects your architecture, downloads the latest release to `~/.local/bin/`, and verifies the install. No `sudo` required.
 
+Default configs (backend, frontend, etc.) are embedded in the binary. On first `gearup run`, they're automatically extracted to `~/.config/gearup/configs/`. To reset defaults or see what's available:
+
+```bash
+gearup init          # write/refresh default configs
+gearup init --force  # overwrite any customizations with defaults
+```
+
 To install to a different location:
 
 ```bash
@@ -55,7 +62,7 @@ Every gearup YAML file has the same shape — there is no distinction between an
 Composition is via `extends: [name, ...]`. The config file's own directory is always in the search path, so configs in the same directory can extend each other without any extra declaration.
 
 ```
-examples/configs/
+configs/
 ├── backend.yaml       ← extends: [base, jvm, containers, aws-k8s, node]
 ├── frontend.yaml      ← extends: [base, node]
 ├── base.yaml          (Homebrew, Git, jq)
@@ -144,12 +151,13 @@ steps:
 ```
 gearup run      [--config <path>] [--dry-run] [--yes]
 gearup plan     [--config <path>]
+gearup init     [--force]
 gearup version
 ```
 
 ### `gearup run`
 
-Executes a config. Without `--config`, discovers configs in `$XDG_CONFIG_HOME/gearup/configs/` and `./examples/configs/` and shows an interactive picker.
+Executes a config. Without `--config`, discovers configs in `$XDG_CONFIG_HOME/gearup/configs/` and `./configs/` and shows an interactive picker.
 
 ### `gearup plan`
 
@@ -158,6 +166,10 @@ Alias for `gearup run --dry-run`. Runs every step's check without installing any
 Exit codes:
 - `0` — machine is fully provisioned (nothing would run)
 - `10` — one or more steps would install (CI-friendly: "machine not up to date")
+
+### `gearup init`
+
+Writes the embedded default configs to `~/.config/gearup/configs/`. Existing files are preserved unless `--force` is passed. Useful for resetting to defaults or seeing what configs ship with the binary.
 
 ### Flags
 
@@ -194,6 +206,8 @@ $XDG_STATE_HOME/gearup/logs/<timestamp>-<config>.log
 Check and install command output is captured here. The terminal stays clean — only step status lines and the log path are shown. On failure, the relevant captured output is printed inline alongside the log path.
 
 ## Creating your own configs
+
+Start by running `gearup init` to see the default configs at `~/.config/gearup/configs/`. Edit them directly, or use them as templates:
 
 1. Create a directory for your configs.
 2. Write one YAML file per concern (base tools, language runtimes, cloud tooling, etc.).
