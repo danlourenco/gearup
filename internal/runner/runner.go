@@ -10,6 +10,7 @@ import (
 
 	"gearup/internal/config"
 	"gearup/internal/elevation"
+	gearexec "gearup/internal/exec"
 	"gearup/internal/installer"
 	"gearup/internal/ui"
 )
@@ -26,11 +27,12 @@ type Writer interface {
 
 // Runner orchestrates plan execution.
 type Runner struct {
-	Registry installer.Registry
-	Out      Writer
-	Prompter elevation.Prompter
-	Printer  *ui.StepPrinter // if nil, falls back to plain Printf on Out
-	DryRun   bool
+	Registry   installer.Registry
+	Out        Writer
+	Prompter   elevation.Prompter
+	Printer    *ui.StepPrinter // if nil, falls back to plain Printf on Out
+	ExecRunner gearexec.Runner // for post_install commands
+	DryRun     bool
 }
 
 const expiryWarnThreshold = 30 * time.Second
@@ -204,6 +206,31 @@ func (r *Runner) runStep(ctx context.Context, i int, step config.Step, total int
 		r.Printer.FinishInstall(idx, total, step.Name, time.Since(start))
 	} else {
 		r.Out.Printf("[%d/%d] %s: installed\n", idx, total, step.Name)
+	}
+
+	// Run post_install commands if any.
+	if err := r.runPostInstall(ctx, idx, step, total); err != nil {
+		return err
+	}
+	return nil
+}
+
+// runPostInstall executes step.PostInstall shell commands sequentially.
+func (r *Runner) runPostInstall(ctx context.Context, idx int, step config.Step, total int) error {
+	if len(step.PostInstall) == 0 {
+		return nil
+	}
+	for i, cmd := range step.PostInstall {
+		if r.Printer == nil {
+			r.Out.Printf("[%d/%d] %s: post-install (%d/%d)...\n", idx, total, step.Name, i+1, len(step.PostInstall))
+		}
+		res, err := r.ExecRunner.RunQuiet(ctx, cmd)
+		if err != nil {
+			return fmt.Errorf("step %d (%s) post_install[%d] spawn error: %w", idx, step.Name, i, err)
+		}
+		if res.ExitCode != 0 {
+			return fmt.Errorf("step %d (%s) post_install[%d] failed (exit %d): %s", idx, step.Name, i, res.ExitCode, res.Stderr)
+		}
 	}
 	return nil
 }

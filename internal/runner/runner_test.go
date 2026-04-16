@@ -11,6 +11,7 @@ import (
 
 	"gearup/internal/config"
 	"gearup/internal/elevation"
+	gearexec "gearup/internal/exec"
 	"gearup/internal/installer"
 	"gearup/internal/runner"
 )
@@ -341,6 +342,83 @@ func TestRunner_DryRun_SkipsElevationAcquire(t *testing.T) {
 	}
 	if prompter.Calls() != 0 {
 		t.Errorf("prompter called %d times in dry-run, want 0", prompter.Calls())
+	}
+}
+
+func TestRunner_PostInstallRunsAfterInstall(t *testing.T) {
+	f := gearexec.NewFakeRunner()
+	// The install command (via the shell installer)
+	f.On("touch /tmp/thing").Return(gearexec.Result{ExitCode: 0}, nil)
+	// The post_install command
+	f.On("echo post-install-ran").Return(gearexec.Result{ExitCode: 0}, nil)
+
+	inst := &installerFunc{
+		check:   func(_ context.Context, s config.Step) (bool, error) { return false, nil },
+		install: func(ctx context.Context, s config.Step) error {
+			_, err := f.Run(ctx, "touch /tmp/thing")
+			return err
+		},
+	}
+	reg := installer.Registry{"shell": inst}
+	w := &bufWriter{}
+
+	r := &runner.Runner{
+		Registry:   reg,
+		Out:        w,
+		ExecRunner: f,
+	}
+	plan := makePlan(config.Step{
+		Name:        "thing",
+		Type:        "shell",
+		Check:       "test -f /tmp/thing",
+		Install:     "touch /tmp/thing",
+		PostInstall: []string{"echo post-install-ran"},
+	})
+
+	if err := r.Run(context.Background(), plan); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	// Verify post_install was called
+	found := false
+	for _, c := range f.Calls() {
+		if c.Cmd == "echo post-install-ran" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("post_install command was not executed")
+	}
+}
+
+func TestRunner_PostInstallSkippedWhenAlreadyInstalled(t *testing.T) {
+	f := gearexec.NewFakeRunner()
+	inst := &recordingInstaller{checkInstalled: true}
+	reg := installer.Registry{"shell": inst}
+	w := &bufWriter{}
+
+	r := &runner.Runner{
+		Registry:   reg,
+		Out:        w,
+		ExecRunner: f,
+	}
+	plan := makePlan(config.Step{
+		Name:        "thing",
+		Type:        "shell",
+		Check:       "true",
+		Install:     "true",
+		PostInstall: []string{"echo should-not-run"},
+	})
+
+	if err := r.Run(context.Background(), plan); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	for _, c := range f.Calls() {
+		if c.Cmd == "echo should-not-run" {
+			t.Error("post_install should NOT run when step is already installed")
+		}
 	}
 }
 
