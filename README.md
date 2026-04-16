@@ -2,11 +2,16 @@
 
 Opinionated, open-source macOS developer-machine bootstrap CLI.
 
-Status: Phase 4A — in development. Silent check commands (logged, not streamed), `--dry-run` / `gearup plan`, `--yes` for scripted use, per-run log file at `$XDG_STATE_HOME/gearup/logs/`.
+Status: Phase 4B — in development. Interactive recipe picker, styled plan preview, step-level progress rendering, smart elevation-banner suppression.
 
 See `docs/superpowers/specs/2026-04-15-gearup-design.md` for the design.
 
 ## Usage
+
+    gearup run
+
+Discovers recipes in `$XDG_CONFIG_HOME/gearup/recipes/` and `./examples/recipes/`,
+and prompts you to pick one interactively. Or specify directly:
 
     gearup run --recipe ./examples/recipes/backend.yaml
 
