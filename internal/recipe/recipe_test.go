@@ -144,15 +144,15 @@ func TestResolve_BackendFixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if got, want := len(plan.Steps), 11; got != want {
+	if got, want := len(plan.Steps), 12; got != want {
 		t.Fatalf("Steps len = %d, want %d", got, want)
 	}
 	// spot-check: first step is Homebrew (curl-pipe-sh), last step is nvm (curl-pipe-sh)
 	if plan.Steps[0].Type != "curl-pipe-sh" || plan.Steps[0].Name != "Homebrew" {
 		t.Errorf("Steps[0] = %+v, want Homebrew curl-pipe-sh", plan.Steps[0])
 	}
-	if plan.Steps[10].Type != "curl-pipe-sh" || plan.Steps[10].Name != "nvm" {
-		t.Errorf("Steps[10] = %+v, want nvm curl-pipe-sh", plan.Steps[10])
+	if plan.Steps[11].Type != "curl-pipe-sh" || plan.Steps[11].Name != "nvm" {
+		t.Errorf("Steps[11] = %+v, want nvm curl-pipe-sh", plan.Steps[11])
 	}
 	// kubectl uses the canonical `kubernetes-cli` formula to avoid brew-alias idempotency issues.
 	var kubectl *config.Step
@@ -184,6 +184,21 @@ func TestResolve_BackendFixture(t *testing.T) {
 	}
 	if compose.Install == "" {
 		t.Error("compose.Install is empty")
+	}
+
+	// The JVM ingredient includes a symlink step that requires elevation.
+	var jvmSymlink *config.Step
+	for i := range plan.Steps {
+		if plan.Steps[i].Name == "Link OpenJDK 21 for system Java discovery" {
+			jvmSymlink = &plan.Steps[i]
+			break
+		}
+	}
+	if jvmSymlink == nil {
+		t.Fatal("did not find JVM symlink step")
+	}
+	if !jvmSymlink.RequiresElevation {
+		t.Error("jvm symlink step should have RequiresElevation:true")
 	}
 }
 
