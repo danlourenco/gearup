@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test"
 import { FakeExec } from "./fake"
+import { ExecaExec } from "./execa"
 
 describe("FakeExec", () => {
   it("records calls and returns queued responses", async () => {
@@ -29,5 +30,33 @@ describe("FakeExec", () => {
     expect(result.stdout).toBe("")
     expect(result.stderr).toBe("")
     expect(result.timedOut).toBe(false)
+  })
+})
+
+describe("ExecaExec", () => {
+  it("captures stdout and exit code from a real command", async () => {
+    const exec = new ExecaExec()
+    const result = await exec.run({ argv: ["/bin/echo", "hello"] })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout.trim()).toBe("hello")
+    expect(result.stderr).toBe("")
+    expect(result.timedOut).toBe(false)
+    expect(result.durationMs).toBeGreaterThanOrEqual(0)
+  })
+
+  it("reports non-zero exit code without throwing", async () => {
+    const exec = new ExecaExec()
+    const result = await exec.run({ argv: ["/usr/bin/false"] })
+
+    expect(result.exitCode).toBe(1)
+  })
+
+  it("runs through a shell when shell: true", async () => {
+    const exec = new ExecaExec()
+    const result = await exec.run({ argv: ["echo foo | cat"], shell: true })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout.trim()).toBe("foo")
   })
 })
