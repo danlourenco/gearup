@@ -102,3 +102,60 @@ describe("step schema", () => {
     }
   })
 })
+
+import { config } from "./config"
+
+describe("config schema", () => {
+  it("parses a minimal config", () => {
+    const parsed = v.parse(config, {
+      version: 1,
+      name: "base",
+    })
+    expect(parsed.name).toBe("base")
+    expect(parsed.steps).toBeUndefined()
+  })
+
+  it("parses a config with steps", () => {
+    const parsed = v.parse(config, {
+      version: 1,
+      name: "backend",
+      steps: [
+        { type: "brew", name: "jq", formula: "jq" },
+      ],
+    })
+    expect(parsed.steps).toHaveLength(1)
+  })
+
+  it("parses a config with extends", () => {
+    const parsed = v.parse(config, {
+      version: 1,
+      name: "backend",
+      extends: ["base", "jvm"],
+    })
+    expect(parsed.extends).toEqual(["base", "jvm"])
+  })
+
+  it("parses a config with elevation", () => {
+    const parsed = v.parse(config, {
+      version: 1,
+      name: "team",
+      elevation: {
+        message: "Admin please",
+        duration: "180s",
+      },
+    })
+    expect(parsed.elevation?.message).toBe("Admin please")
+  })
+
+  it("rejects version !== 1", () => {
+    expect(() =>
+      v.parse(config, { version: 2, name: "x" }),
+    ).toThrow()
+  })
+
+  it("rejects a config with no name", () => {
+    expect(() =>
+      v.parse(config, { version: 1 }),
+    ).toThrow()
+  })
+})
