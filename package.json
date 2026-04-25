@@ -1,0 +1,25 @@
+{
+  "name": "gearup",
+  "version": "0.2.0-alpha.1",
+  "type": "module",
+  "bin": {
+    "gearup": "./src/cli.ts"
+  },
+  "scripts": {
+    "dev": "bun run src/cli.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "build": "bun build src/cli.ts --compile --outfile=bin/gearup"
+  },
+  "dependencies": {
+    "citty": "^0.1.6",
+    "c12": "^2.0.0",
+    "confbox": "^0.1.7",
+    "valibot": "^0.40.0",
+    "execa": "^9.5.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "@types/bun": "latest"
+  }
+}

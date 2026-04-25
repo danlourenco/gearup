@@ -16,3 +16,8 @@
 
 # Worktrees
 .worktrees/
+
+# TypeScript / Bun
+node_modules/
+bin/
+*.tsbuildinfo
