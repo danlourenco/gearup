@@ -13,3 +13,6 @@
 .vscode/
 .idea/
 *.swp
+
+# Worktrees
+.worktrees/
