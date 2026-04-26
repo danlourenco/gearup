@@ -128,8 +128,10 @@ export async function runInstall(config: Config, ctx: Context): Promise<RunRepor
     }
   }
 
-  // Run elevation-required steps first, then regular.
-  const ordered = [...elevSteps, ...regSteps]
+  // When elevation was acquired, run elevation-required steps first to use the
+  // admin window before it expires (matches Go behavior). Otherwise run in
+  // declared order — partitioning would re-order steps unnecessarily.
+  const ordered = needsElevation ? [...elevSteps, ...regSteps] : allSteps
 
   for (const step of ordered) {
     const checked = await safeCheck(step, ctx)

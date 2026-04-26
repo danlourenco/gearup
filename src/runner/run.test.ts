@@ -1,4 +1,14 @@
-import { describe, it, expect } from "bun:test"
+import { describe, it, expect, mock } from "bun:test"
+
+// Mock @clack/prompts BEFORE importing modules that use it (acquireElevation).
+mock.module("@clack/prompts", () => ({
+  confirm: mock(async () => true),
+  isCancel: (v: unknown) => v === Symbol.for("clack:cancel"),
+  intro: mock(() => undefined),
+  outro: mock(() => undefined),
+  note: mock(() => undefined),
+}))
+
 import { runPlan, runInstall } from "./run"
 import { FakeExec } from "../exec/fake"
 import { makeContext } from "../context"
@@ -188,5 +198,105 @@ describe("runInstall", () => {
       expect(report.failedAt).toBe("thing")
       expect(report.error).toContain("post_install")
     }
+  })
+
+  it("runs steps in declared order when no elevation is needed", async () => {
+    const exec = new FakeExec()
+    // Pre-check loop runs for elevation steps only:
+    //   - elev1 check exit 0 (installed, continue)
+    //   - elev2 check exit 0 (installed, loop ends without setting needsElevation)
+    exec.queueResponse({ exitCode: 0 })  // pre-check elev1
+    exec.queueResponse({ exitCode: 0 })  // pre-check elev2
+    // Main loop in declared order: elev1, reg, elev2
+    exec.queueResponse({ exitCode: 0 })  // main loop elev1 check (skip)
+    exec.queueResponse({ exitCode: 1 })  // main loop reg check (not installed)
+    exec.queueResponse({ exitCode: 0 })  // main loop reg install
+    exec.queueResponse({ exitCode: 0 })  // main loop elev2 check (skip)
+
+    const ctx = makeContext({ exec })
+
+    const config: Config = {
+      version: 1,
+      name: "ordering",
+      elevation: { message: "elev needed" },
+      steps: [
+        { type: "shell", name: "elev1", install: "true", check: "true", requires_elevation: true },
+        { type: "shell", name: "reg", install: "true", check: "false" },
+        { type: "shell", name: "elev2", install: "true", check: "true", requires_elevation: true },
+      ],
+    }
+
+    const report = await runInstall(config, ctx)
+
+    expect(report.ok).toBe(true)
+    if (report.ok) {
+      // Declared order preserved: elev1, reg, elev2
+      expect(report.steps.map((s) => s.name)).toEqual(["elev1", "reg", "elev2"])
+      expect(report.steps[0]?.action).toBe("skipped")
+      expect(report.steps[1]?.action).toBe("installed")
+      expect(report.steps[2]?.action).toBe("skipped")
+    }
+  })
+
+  it("runs elevation steps first when elevation is acquired", async () => {
+    // Mock @clack/prompts so acquireElevation returns ok without actually prompting.
+    const clack = await import("@clack/prompts")
+    ;(clack.confirm as ReturnType<typeof mock>).mockImplementation(async () => true)
+
+    const exec = new FakeExec()
+    // Pre-check: elev1 not installed → needsElevation = true (loop breaks early)
+    exec.queueResponse({ exitCode: 1 })  // pre-check elev1 (not installed → break)
+    // Main loop in elevation-first order: elev1, reg
+    exec.queueResponse({ exitCode: 1 })  // main loop elev1 check (not installed)
+    exec.queueResponse({ exitCode: 0 })  // main loop elev1 install
+    exec.queueResponse({ exitCode: 1 })  // main loop reg check (not installed)
+    exec.queueResponse({ exitCode: 0 })  // main loop reg install
+
+    const ctx = makeContext({ exec })
+
+    const config: Config = {
+      version: 1,
+      name: "elev-first",
+      elevation: { message: "elev needed" },
+      steps: [
+        { type: "shell", name: "reg", install: "true", check: "false" },
+        { type: "shell", name: "elev1", install: "true", check: "false", requires_elevation: true },
+      ],
+    }
+
+    const report = await runInstall(config, ctx)
+
+    expect(report.ok).toBe(true)
+    if (report.ok) {
+      // Elevation-first ordering: elev1 runs before reg (overrides declared order)
+      expect(report.steps.map((s) => s.name)).toEqual(["elev1", "reg"])
+    }
+  })
+
+  it("runs requires_elevation step without prompting when no config.elevation block is set", async () => {
+    // No elevation block in config — pre-check is skipped entirely; banner never shown.
+    // Main loop runs in declared order (needsElevation stays false).
+    const exec = new FakeExec()
+    exec.queueResponse({ exitCode: 1 })  // elev step check (not installed)
+    exec.queueResponse({ exitCode: 0 })  // elev step install
+
+    const ctx = makeContext({ exec })
+
+    const config: Config = {
+      version: 1,
+      name: "no-elev-block",
+      steps: [
+        { type: "shell", name: "elev", install: "true", check: "false", requires_elevation: true },
+      ],
+    }
+
+    const report = await runInstall(config, ctx)
+
+    expect(report.ok).toBe(true)
+    if (report.ok) {
+      expect(report.steps).toHaveLength(1)
+      expect(report.steps[0]?.action).toBe("installed")
+    }
+    expect(exec.calls).toHaveLength(2)  // no extra pre-check call
   })
 })
