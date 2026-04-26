@@ -3,6 +3,9 @@ import { loadConfig } from "../config/load"
 import { runInstall, type InstallStepReport } from "../runner/run"
 import { makeContext } from "../context"
 import { ExecaExec } from "../exec/execa"
+import { LoggingExec } from "../exec/logging"
+import { openFileLogger } from "../log/file"
+import { logFilePath } from "../log/xdg"
 
 export const runCommand = defineCommand({
   meta: {
@@ -18,21 +21,32 @@ export const runCommand = defineCommand({
   },
   async run({ args }) {
     const config = await loadConfig(args.config)
-    const ctx = makeContext({ exec: new ExecaExec() })
-    const report = await runInstall(config, ctx)
+    const path = logFilePath(config.name, process.env)
+    const logger = await openFileLogger(path)
+    const exec = new LoggingExec(new ExecaExec(), logger)
+    const ctx = makeContext({ exec, log: logger })
 
-    printReport(report.configName, report.steps)
+    try {
+      const report = await runInstall(config, ctx)
 
-    if (!report.ok) {
-      console.error("")
-      console.error(`✗ Failed at step: ${report.failedAt}`)
-      console.error(`  ${report.error}`)
-      return 1
+      printReport(report.configName, report.steps)
+
+      if (!report.ok) {
+        console.error("")
+        console.error(`✗ Failed at step: ${report.failedAt}`)
+        console.error(`  ${report.error}`)
+        console.error("")
+        console.error(`Log: ${logger.path()}`)
+        return 1
+      }
+
+      console.log("")
+      console.log("Done.")
+      console.log(`Log: ${logger.path()}`)
+      return 0
+    } finally {
+      await logger.close()
     }
-
-    console.log("")
-    console.log("Done.")
-    return 0
   },
 })
 
@@ -41,7 +55,7 @@ function printReport(configName: string, steps: InstallStepReport[]): void {
   console.log("")
   steps.forEach((step, i) => {
     const idx = `[${i + 1}/${steps.length}]`
-    const marker = "✓"  // both skipped and installed are successful outcomes
+    const marker = "✓"
     const label = step.action === "skipped" ? "already installed" : "installed"
     console.log(`  ${marker} ${idx} ${step.name}  ${label}`)
   })
