@@ -77,60 +77,81 @@ argv → CLI router → Config loader → Validator → Runner → Handler → e
 
 ### Data model
 
-The step schema is a Valibot discriminated union keyed on `type`:
+The step schema is a Valibot discriminated union keyed on `type`. Steps are authored in configs as a Record keyed by step name; `name` does not appear in the step body itself:
 
 ```ts
 // src/schema/step.ts
 import * as v from "valibot"
 
-const baseStep = {
-  name: v.pipe(v.string(), v.minLength(1)),
+// `name` is NOT in baseFields — it lives on the parent map's key.
+const baseFields = {
   check: v.optional(v.string()),
   requires_elevation: v.optional(v.boolean()),
   post_install: v.optional(v.array(v.string())),
+  platform: v.optional(platform),
 }
 
-export const brewStep = v.object({ type: v.literal("brew"),         ...baseStep, formula: v.string() })
-export const brewCaskStep = v.object({ type: v.literal("brew-cask"), ...baseStep, cask: v.string() })
-export const curlPipeStep = v.object({ type: v.literal("curl-pipe-sh"), ...baseStep,
-  url: v.string(),
-  check: v.string(),                            // required for curl-pipe
+export const brewStepBody = v.object({ type: v.literal("brew"), ...baseFields, formula: v.pipe(v.string(), v.minLength(1)) })
+export const brewCaskStepBody = v.object({ type: v.literal("brew-cask"), ...baseFields, cask: v.pipe(v.string(), v.minLength(1)) })
+export const curlPipeStepBody = v.object({ type: v.literal("curl-pipe-sh"), ...baseFields,
+  url: v.pipe(v.string(), v.url()),
+  shell: v.optional(v.picklist(["bash", "sh", "zsh", "fish"])),
+  args: v.optional(v.array(v.pipe(v.string(), v.regex(/^\S+$/)))),
+  check: v.pipe(v.string(), v.minLength(1)),   // required for curl-pipe
 })
-export const gitCloneStep = v.object({ type: v.literal("git-clone"), ...baseStep,
-  repo: v.string(),
-  dest: v.string(),
+export const gitCloneStepBody = v.object({ type: v.literal("git-clone"), ...baseFields,
+  repo: v.pipe(v.string(), v.minLength(1)),
+  dest: v.pipe(v.string(), v.minLength(1)),
   ref: v.optional(v.string()),
 })
-export const shellStep = v.object({ type: v.literal("shell"),         ...baseStep,
-  install: v.string(),
-  check: v.string(),                            // required for shell
+export const shellStepBody = v.object({ type: v.literal("shell"), ...baseFields,
+  install: v.pipe(v.string(), v.minLength(1)),
+  check: v.pipe(v.string(), v.minLength(1)),   // required for shell
 })
 
-export const step = v.variant("type", [brewStep, brewCaskStep, curlPipeStep, gitCloneStep, shellStep])
-export type Step = v.InferOutput<typeof step>
+export const stepBody = v.variant("type", [brewStepBody, brewCaskStepBody, curlPipeStepBody, gitCloneStepBody, shellStepBody])
+
+// Internal types: each step has `name` (injected from the Record key during config parsing).
+type WithName<T> = T & { name: string }
+export type Step = WithName<v.InferOutput<typeof stepBody>>
 ```
 
-The top-level config schema:
+The top-level config schema — steps are a `Record<string, StepBody>` that Valibot transforms to `Step[]`:
 
 ```ts
 // src/schema/config.ts
+import * as v from "valibot"
+import { stepBody, type Step } from "./step"
+
+// Steps are authored as a Record keyed by name; we transform to Step[] with name injected
+// from the key. This shape lets defu (via c12) handle override semantics natively when
+// configs are merged through `extends:`.
+const stepsRecord = v.pipe(
+  v.record(v.string(), stepBody),
+  v.transform((rec): Step[] =>
+    Object.entries(rec).map(([name, body]) => ({ name, ...body } as Step)),
+  ),
+)
+
 export const config = v.object({
   version: v.literal(1),
-  name: v.string(),
+  name: v.pipe(v.string(), v.minLength(1)),
   description: v.optional(v.string()),
   platform: v.optional(v.object({
-    os: v.array(v.picklist(["darwin"])),
+    os: v.optional(v.array(v.picklist(["darwin", "linux"]))),
+    arch: v.optional(v.array(v.string())),
   })),
   elevation: v.optional(v.object({
     message: v.string(),
     duration: v.optional(v.string()),          // "180s" etc.
   })),
   extends: v.optional(v.array(v.string())),
-  sources: v.optional(v.array(v.object({ path: v.string() }))),
-  steps: v.optional(v.array(step)),
+  steps: v.optional(stepsRecord),
 })
 export type Config = v.InferOutput<typeof config>
 ```
+
+**Why Record-keyed steps?** When configs compose via `extends:`, c12+defu naturally deep-merge two records keyed by the same string (current overrides extended on collision). With an array shape, we'd need a custom merger to dedup. The Record shape is also more explicit about step name uniqueness (the schema can't even represent two steps with the same name in a single config) and produces clearer validation error paths (`steps.Homebrew.formula` vs `steps[3].formula`). Internal `Step[]` shape is recovered via a Valibot transform that injects `name` from the key — handlers and runner are unchanged.
 
 ### Context shape
 
@@ -202,7 +223,7 @@ The `satisfies` enforces: adding a step type requires (a) a new Valibot schema, 
 |---|---|---|
 | **1. Tracer: `plan`** | `gearup plan --config <path>` • c12+confbox parsing (all 3 formats) • single-file configs (no `extends:`) • all 5 step types' **check** handlers • stdout report • exit codes 0/10 • `gearup version` | `plan` runs end-to-end against fixture configs in all 3 formats; exit codes are correct; all 5 handlers have passing unit tests. |
 | **2. `run` + full step types** | Install dispatch for all 5 types • `post_install` hooks • elevation pause banner via `@clack/prompts` (note + confirm) • still stdout, no log file yet | `run` completes an install path on a real macOS machine; elevation banner suppresses when no elevation-required steps remain; `post_install` only runs on successful installs. |
-| **3. Robustness** | `extends:` composition (c12's layered merge + name→path pre-resolver) • XDG logging via pathe (`$XDG_STATE_HOME/gearup/logs/`) with captured subprocess output • inline failure printing with log path | Can run existing `backend.yaml` (with its `extends: [base, jvm, ...]`) unchanged; log files are written at the documented path; on step failure the captured stderr is printed alongside `Log: <path>`. |
+| **3. Robustness** | `extends:` composition via c12 (paths, packages, github: refs) • Record-keyed steps schema (drops the dedup-merger problem) • `sources:` field removed in favor of explicit paths • curl-pipe-sh schema hardening (URL/shell/args validation) • XDG logging via FileLogger + LoggingExec decorator with captured subprocess output and inline failure printing | Can run configs with `extends:` references unchanged; log files are written at the documented path; on step failure the captured stderr is printed alongside `Log: <path>`. |
 | **4. Polish** | Interactive picker when `--config` omitted (`@clack/prompts` select) • styled step status lines (spinners, check marks, timings) • `gearup init` with embedded default configs • release pipeline (`bun build --compile` matrix + install.sh rewrite) | Feature parity with current Go gearup; `curl -fsSL .../install.sh | bash` installs the Bun-compiled binary; interactive picker flow matches current UX. |
 
 ## Testing strategy
@@ -341,10 +362,10 @@ Phase 2 adds `@clack/prompts` (elevation banner). Phase 3 adds `pathe`. Phase 4 
 
 ## Open questions deferred to implementation
 
-- **`extends:` name resolution rules.** c12 expects paths; existing configs use names (`extends: [base]` → `base.yaml` in the search path). The pre-resolver must replicate current Go behavior exactly, including the `sources:` declaration for non-same-dir configs. Details land in Phase 3.
+- **`extends:` name resolution rules.** **Resolved (Phase 3).** Dropped Go's name-based search (`extends: [base]`) in favor of c12-native references (`extends: ["./base.jsonc"]`, `extends: ["github:owner/repo"]`, etc.). The `./` prefix is required for local files; **extension is required for extends array entries** (c12's auto-resolution only works for the entry config and JS/TS files, not non-JS files in extends). The `sources:` field was removed — paths are explicit, including absolute paths and remote refs.
 - **Elevation prompt mechanism in Phase 2.** Uses `@clack/prompts` (`clack.note` for the banner + `clack.confirm` for the prompt). Originally planned as `readline`, but the readline UX would be a regression vs the Charm-based Go version, so Clack was brought forward from Phase 4 — one extra dep that we know we want anyway.
-- **`curl-pipe-sh` shell invocation.** Using `execa("sh", ["-c", command])` vs execa's `$` template is a Phase 2 implementation choice, not a design decision.
-- **Log format details.** Current Go gearup writes plaintext logs with command output interleaved. The TS port matches this byte-for-byte in Phase 3.
+- **`curl-pipe-sh` shell invocation and sanitization.** **Resolved (Phase 3).** Phase 3 hardened the schema with a URL validator (`v.url()`), a shell allowlist (`bash`/`sh`/`zsh`/`fish` via `v.picklist`), and an args whitespace check (`v.regex(/^\S+$/)`). Shell invocation uses `execa(shell, ["-s"], { input: script })` — no interpolation, no injection surface.
+- **Log format details.** **Resolved (Phase 3).** XDG file logging via `FileLogger` + `LoggingExec` decorator: every subprocess invocation is logged to `$XDG_STATE_HOME/gearup/logs/<timestamp>-<configname>.log` with captured stdout/stderr. `Log: <path>` is printed on both success and failure.
 
 These are all small, well-bounded decisions. None of them change the architecture.
 
