@@ -46,7 +46,7 @@ Targeting "rivals Astro / Wrangler" remains a reasonable aspiration — but as a
 | CLI framework | **citty** | unjs ecosystem coherence, functional `defineCommand` style matches the rest of the codebase, `runCommand`/`renderUsage` cover testing. |
 | Subprocess | **execa** behind an `Exec` interface | Battle-tested, rich error objects, shell mode, timeout, streaming — all first-class. Wrapped behind our interface for testability and replaceability. |
 | Test runner | **`bun:test`** | Zero config, native Bun, Jest-compatible API, fastest iteration. |
-| Picker / TUI (Phase 4) | **@clack/prompts** | The Astro-originated picker library. Matches the "rival Astro" bar out of the box. |
+| Elevation banner (Phase 2) + Picker (Phase 4) | **@clack/prompts** | The Astro-originated picker library. Brought forward to Phase 2 for the elevation banner; Phase 4 adds the picker. |
 | XDG paths (Phase 3) | **pathe** | unjs cross-platform path normalization. |
 
 ### Decisions considered and rejected
@@ -201,7 +201,7 @@ The `satisfies` enforces: adding a step type requires (a) a new Valibot schema, 
 | Phase | Scope | Exit criteria |
 |---|---|---|
 | **1. Tracer: `plan`** | `gearup plan --config <path>` • c12+confbox parsing (all 3 formats) • single-file configs (no `extends:`) • all 5 step types' **check** handlers • stdout report • exit codes 0/10 • `gearup version` | `plan` runs end-to-end against fixture configs in all 3 formats; exit codes are correct; all 5 handlers have passing unit tests. |
-| **2. `run` + full step types** | Install dispatch for all 5 types • `post_install` hooks • elevation pause banner (simple prompt for confirmation) • still stdout, no log file yet | `run` completes an install path on a real macOS machine; elevation banner suppresses when no elevation-required steps remain; `post_install` only runs on successful installs. |
+| **2. `run` + full step types** | Install dispatch for all 5 types • `post_install` hooks • elevation pause banner via `@clack/prompts` (note + confirm) • still stdout, no log file yet | `run` completes an install path on a real macOS machine; elevation banner suppresses when no elevation-required steps remain; `post_install` only runs on successful installs. |
 | **3. Robustness** | `extends:` composition (c12's layered merge + name→path pre-resolver) • XDG logging via pathe (`$XDG_STATE_HOME/gearup/logs/`) with captured subprocess output • inline failure printing with log path | Can run existing `backend.yaml` (with its `extends: [base, jvm, ...]`) unchanged; log files are written at the documented path; on step failure the captured stderr is printed alongside `Log: <path>`. |
 | **4. Polish** | Interactive picker when `--config` omitted (`@clack/prompts` select) • styled step status lines (spinners, check marks, timings) • `gearup init` with embedded default configs • release pipeline (`bun build --compile` matrix + install.sh rewrite) | Feature parity with current Go gearup; `curl -fsSL .../install.sh | bash` installs the Bun-compiled binary; interactive picker flow matches current UX. |
 
@@ -337,12 +337,12 @@ gearup/
 }
 ```
 
-Phase 3 adds `pathe`. Phase 4 adds `@clack/prompts`. Total runtime dependency count lands at 8 — small, coherent, and unjs-aligned.
+Phase 2 adds `@clack/prompts` (elevation banner). Phase 3 adds `pathe`. Phase 4 uses `@clack/prompts` further (picker, spinners). Total runtime dependency count lands at 8 — small, coherent, and unjs-aligned.
 
 ## Open questions deferred to implementation
 
 - **`extends:` name resolution rules.** c12 expects paths; existing configs use names (`extends: [base]` → `base.yaml` in the search path). The pre-resolver must replicate current Go behavior exactly, including the `sources:` declaration for non-same-dir configs. Details land in Phase 3.
-- **Elevation prompt mechanism in Phase 2.** Uses Node's built-in `readline` for a minimal confirmation (~10 lines, zero deps). Phase 4 replaces this with `@clack/prompts` for the styled banner. Keeping the dep graph flat in Phase 2 is worth more than prettier output that gets replaced next phase.
+- **Elevation prompt mechanism in Phase 2.** Uses `@clack/prompts` (`clack.note` for the banner + `clack.confirm` for the prompt). Originally planned as `readline`, but the readline UX would be a regression vs the Charm-based Go version, so Clack was brought forward from Phase 4 — one extra dep that we know we want anyway.
 - **`curl-pipe-sh` shell invocation.** Using `execa("sh", ["-c", command])` vs execa's `$` template is a Phase 2 implementation choice, not a design decision.
 - **Log format details.** Current Go gearup writes plaintext logs with command output interleaved. The TS port matches this byte-for-byte in Phase 3.
 
