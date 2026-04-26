@@ -79,4 +79,30 @@ describe("loadConfig", () => {
     const config = await loadConfig(path.join(fixtures, "single-brew"))
     expect(config.name).toBe("single-brew")
   })
+
+  it("fails to merge parent steps when extends entry is a bare name (no path/extension)", async () => {
+    // c12 doesn't auto-resolve bare names for non-JS files. This test documents the
+    // constraint: users must write `./base.jsonc`, not `base`.
+    const tmpFixturePath = path.join(fixtures, "__bare-name-extends.jsonc")
+    await fs.writeFile(
+      tmpFixturePath,
+      JSON.stringify({
+        version: 1,
+        name: "bare-name",
+        extends: ["extends-base"],  // INTENTIONALLY missing ./ and .jsonc
+        steps: { "child-only": { type: "brew", formula: "child-only" } },
+      }),
+    )
+
+    try {
+      const config = await loadConfig(tmpFixturePath)
+      // The child-only step is present, but extends-base's `jq` is NOT merged
+      // because c12 couldn't resolve the bare name reference.
+      const names = config.steps?.map((s) => s.name)
+      expect(names).toEqual(["child-only"])
+      expect(names).not.toContain("jq")
+    } finally {
+      await fs.unlink(tmpFixturePath).catch(() => undefined)
+    }
+  })
 })
