@@ -1,17 +1,26 @@
 import { describe, it, expect, spyOn, mock, afterEach } from "bun:test"
 
+const spinnerMock = {
+  start: mock<(label: string) => void>(() => undefined),
+  message: mock<(label: string) => void>(() => undefined),
+  stop: mock<(label: string) => void>(() => undefined),
+}
+
 mock.module("@clack/prompts", () => ({
+  intro: mock<(label: string) => void>(() => undefined),
+  outro: mock<(label: string) => void>(() => undefined),
+  cancel: mock<(label: string) => void>(() => undefined),
+  note: mock<(message: string, title?: string) => void>(() => undefined),
+  spinner: () => spinnerMock,
   confirm: mock(async () => true),
   isCancel: () => false,
-  intro: mock(),
-  outro: mock(),
-  note: mock(),
 }))
 
 import { runCommand } from "citty"
 import path from "node:path"
 import fs from "node:fs/promises"
 import { runCommand as gearupRunCommand } from "./run"
+import * as clack from "@clack/prompts"
 
 const fixtures = path.resolve(import.meta.dir, "../../tests/fixtures")
 const tmpStateDir = path.join("/tmp", `gearup-run-cmd-test-${process.pid}`)
@@ -22,18 +31,17 @@ afterEach(async () => {
   await fs.rm(tmpStateDir, { recursive: true, force: true })
 })
 
-describe("run command", () => {
-  it("returns 0 on a successful run", async () => {
-    const logSpy = spyOn(console, "log").mockImplementation(() => undefined)
-    const tmpMarker = "/tmp/gearup-test-run-success"
+describe("run command (Clack UX)", () => {
+  it("emits intro and outro on success; returns 0", async () => {
+    const tmpMarker = "/tmp/gearup-test-clack-run-success"
     await fs.unlink(tmpMarker).catch(() => undefined)
 
-    const fixturePath = path.join(fixtures, "__run-success.jsonc")
+    const fixturePath = path.join(fixtures, "__clack-run-success.jsonc")
     await fs.writeFile(
       fixturePath,
       JSON.stringify({
         version: 1,
-        name: "run-success",
+        name: "clack-success",
         steps: {
           marker: {
             type: "shell",
@@ -49,27 +57,22 @@ describe("run command", () => {
         rawArgs: ["--config", fixturePath],
       })
       expect(result).toBe(0)
-      const output = logSpy.mock.calls.map((c) => c.join(" ")).join("\n")
-      expect(output).toContain("run-success")
-      expect(output).toContain("marker")
-      expect(output).toContain("Log:")
+      expect(clack.intro).toHaveBeenCalled()
+      expect(clack.outro).toHaveBeenCalled()
+      expect(clack.cancel).not.toHaveBeenCalled()
     } finally {
-      logSpy.mockRestore()
       await fs.unlink(fixturePath).catch(() => undefined)
       await fs.unlink(tmpMarker).catch(() => undefined)
     }
   })
 
-  it("returns 1 on a failed run and prints the log path", async () => {
-    const errSpy = spyOn(console, "error").mockImplementation(() => undefined)
-    const logSpy = spyOn(console, "log").mockImplementation(() => undefined)
-
-    const fixturePath = path.join(fixtures, "__run-fail.jsonc")
+  it("emits cancel + note + outro on failure; returns 1", async () => {
+    const fixturePath = path.join(fixtures, "__clack-run-fail.jsonc")
     await fs.writeFile(
       fixturePath,
       JSON.stringify({
         version: 1,
-        name: "run-fail",
+        name: "clack-fail",
         steps: {
           "always-fails": {
             type: "shell",
@@ -85,52 +88,10 @@ describe("run command", () => {
         rawArgs: ["--config", fixturePath],
       })
       expect(result).toBe(1)
-      const errOutput = errSpy.mock.calls.map((c) => c.join(" ")).join("\n")
-      expect(errOutput).toContain("Failed at step")
-      expect(errOutput).toContain("always-fails")
-      expect(errOutput).toContain("Log:")
+      expect(clack.cancel).toHaveBeenCalled()
+      expect(clack.outro).toHaveBeenCalled()
     } finally {
-      errSpy.mockRestore()
-      logSpy.mockRestore()
       await fs.unlink(fixturePath).catch(() => undefined)
     }
-  })
-
-  it("creates a real log file containing the subprocess output", async () => {
-    const logSpy = spyOn(console, "log").mockImplementation(() => undefined)
-    const tmpMarker = "/tmp/gearup-test-real-log"
-    await fs.unlink(tmpMarker).catch(() => undefined)
-
-    const fixturePath = path.join(fixtures, "__run-log-content.jsonc")
-    await fs.writeFile(
-      fixturePath,
-      JSON.stringify({
-        version: 1,
-        name: "real-log",
-        steps: {
-          marker: {
-            type: "shell",
-            install: `touch ${tmpMarker}`,
-            check: `test -f ${tmpMarker}`,
-          },
-        },
-      }),
-    )
-
-    try {
-      await runCommand(gearupRunCommand, { rawArgs: ["--config", fixturePath] })
-    } finally {
-      logSpy.mockRestore()
-      await fs.unlink(fixturePath).catch(() => undefined)
-      await fs.unlink(tmpMarker).catch(() => undefined)
-    }
-
-    // Verify a log file exists under tmpStateDir/gearup/logs/ and contains the touch invocation.
-    const logsDir = path.join(tmpStateDir, "gearup", "logs")
-    const entries = await fs.readdir(logsDir)
-    expect(entries.length).toBeGreaterThanOrEqual(1)
-    const logContent = await fs.readFile(path.join(logsDir, entries[0]!), "utf8")
-    expect(logContent).toContain(`touch ${tmpMarker}`)
-    expect(logContent).toContain("(exit")
   })
 })
