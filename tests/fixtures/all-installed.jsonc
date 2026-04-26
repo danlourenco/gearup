@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "name": "all-installed",
+  "steps": [
+    { "type": "brew", "name": "jq", "formula": "jq" }
+  ]
+}

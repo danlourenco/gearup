@@ -13,3 +13,11 @@
 .vscode/
 .idea/
 *.swp
+
+# Worktrees
+.worktrees/
+
+# TypeScript / Bun
+node_modules/
+bin/
+*.tsbuildinfo

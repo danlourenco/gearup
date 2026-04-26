@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "name": "all-five-types",
+  "steps": [
+    { "type": "brew",           "name": "jq",        "formula": "jq" },
+    { "type": "brew-cask",      "name": "iTerm2",    "cask": "iterm2" },
+    { "type": "curl-pipe-sh",   "name": "Homebrew",  "url": "https://example.com/install.sh", "check": "command -v brew" },
+    { "type": "git-clone",      "name": "dotfiles",  "repo": "git@github.com:me/dotfiles.git", "dest": "/tmp/dotfiles" },
+    { "type": "shell",          "name": "rust",      "install": "curl ... | sh", "check": "command -v rustc" }
+  ]
+}
