@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "name": "aws-k8s",
+  "description": "AWS and Kubernetes CLI tooling",
+  "steps": {
+    "AWS CLI": {
+      "type": "brew",
+      "formula": "awscli"
+    },
+    "aws-iam-authenticator": {
+      "type": "brew",
+      "formula": "aws-iam-authenticator"
+    },
+    "kubectl": {
+      "type": "brew",
+      "formula": "kubernetes-cli"
+    }
+  }
+}
