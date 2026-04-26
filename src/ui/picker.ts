@@ -3,6 +3,7 @@ import path from "node:path"
 import { parseJSONC } from "confbox/jsonc"
 import { parseYAML } from "confbox/yaml"
 import { parseTOML } from "confbox/toml"
+import * as clack from "@clack/prompts"
 
 export type ConfigSource = "user" | "project"
 
@@ -96,4 +97,36 @@ function parseByExt(ext: string, text: string): unknown {
       return parseTOML(text)
   }
   return null
+}
+
+/**
+ * Show a Clack select prompt of available configs. Returns the chosen config's
+ * path, or null if the user cancels (Ctrl-C / Escape).
+ *
+ * If exactly one config is available, returns its path immediately without
+ * prompting — picking from a list of one is wasteful.
+ */
+export async function pickConfig(configs: DiscoveredConfig[]): Promise<string | null> {
+  if (configs.length === 0) {
+    throw new Error("no configs to pick from")
+  }
+  if (configs.length === 1) {
+    return configs[0]!.path
+  }
+
+  const choice = await clack.select({
+    message: "Pick a config",
+    options: configs.map((c) => ({
+      label: c.name,
+      value: c.path,
+      hint: c.description
+        ? `${c.description} [${c.source}]`
+        : `[${c.source}]`,
+    })),
+  })
+
+  if (clack.isCancel(choice)) {
+    return null
+  }
+  return choice as string
 }

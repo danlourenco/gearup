@@ -78,3 +78,47 @@ describe("discoverConfigs", () => {
     expect(result.map((c) => c.name)).toEqual(["ok"])
   })
 })
+
+import { pickConfig } from "./picker"
+
+describe("pickConfig", () => {
+  it("auto-selects when only one config is available (no prompt)", async () => {
+    const configs = [
+      { name: "only", path: "/tmp/only.jsonc", source: "user" as const },
+    ]
+    const choice = await pickConfig(configs)
+    expect(choice).toBe("/tmp/only.jsonc")
+    expect(clackSelectMock).not.toHaveBeenCalled()
+  })
+
+  it("prompts via clack.select when multiple configs are available", async () => {
+    clackSelectMock.mockImplementation(
+      async (opts: { options: { value: string }[] }) => opts.options[1]?.value,
+    )
+
+    const configs = [
+      { name: "first", path: "/tmp/first.jsonc", source: "user" as const },
+      { name: "second", path: "/tmp/second.jsonc", source: "project" as const },
+    ]
+    const choice = await pickConfig(configs)
+    expect(choice).toBe("/tmp/second.jsonc")
+    expect(clackSelectMock).toHaveBeenCalled()
+  })
+
+  it("returns null when the user cancels", async () => {
+    const cancelSym = Symbol.for("clack:cancel")
+    clackSelectMock.mockImplementation(async () => cancelSym as unknown as string)
+    clackIsCancelMock.mockImplementation(() => true)
+
+    const configs = [
+      { name: "a", path: "/tmp/a.jsonc", source: "user" as const },
+      { name: "b", path: "/tmp/b.jsonc", source: "user" as const },
+    ]
+    const choice = await pickConfig(configs)
+    expect(choice).toBe(null)
+  })
+
+  it("throws when configs list is empty", async () => {
+    await expect(pickConfig([])).rejects.toThrow(/no configs/i)
+  })
+})
