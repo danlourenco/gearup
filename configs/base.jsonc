@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "name": "base",
+  "description": "Homebrew, core CLI tools, and standard desktop apps",
+  "steps": {
+    "Homebrew": {
+      "type": "curl-pipe-sh",
+      "url": "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh",
+      "check": "command -v brew"
+    },
+    "Git": {
+      "type": "brew",
+      "formula": "git",
+      "check": "command -v git"
+    },
+    "jq": {
+      "type": "brew",
+      "formula": "jq"
+    },
+    "iTerm2": {
+      "type": "brew-cask",
+      "cask": "iterm2",
+      "check": "test -d \"/Applications/iTerm.app\""
+    },
+    "Bruno": {
+      "type": "brew-cask",
+      "cask": "bruno",
+      "check": "test -d \"/Applications/Bruno.app\""
+    }
+  }
+}

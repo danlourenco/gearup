@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "name": "Backend",
+  "description": "Full macOS developer toolchain for backend/infra work",
+  "platform": {
+    "os": ["darwin"]
+  },
+  "elevation": {
+    "message": "Some steps need admin permissions. Elevate your session now (via your usual mechanism), then press Continue.",
+    "duration": "180s"
+  },
+  "extends": [
+    "./base.jsonc",
+    "./jvm.jsonc",
+    "./containers.jsonc",
+    "./aws-k8s.jsonc",
+    "./node.jsonc"
+  ]
+}

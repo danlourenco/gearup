@@ -52,7 +52,7 @@ describe("e2e: gearup run (safe-install)", () => {
       expect(first.exitCode).toBe(0)
       expect(first.stdout.toString()).toContain("safe-install")
       expect(first.stdout.toString()).toContain("marker")
-      expect(first.stdout.toString()).toContain("Done.")
+      expect(first.stdout.toString()).toContain("Done ·")
 
       // Verify side effects
       await fs.access(installMarker)  // throws if missing

@@ -63,6 +63,11 @@ export async function loadConfig(configPath: string): Promise<Config> {
 
   const { cwd, configFile } = deriveLoadOptions(configPath)
 
+  // NOTE: c12 auto-resolves extensions ONLY for the entry config (this call's
+  // `configFile` parameter). Inside `extends:` arrays, references to non-JS files
+  // MUST include their extension — `extends: ["./base.jsonc"]`, not `["./base"]`.
+  // Bare names like `"base"` won't resolve and the parent's steps will silently
+  // fail to merge. (See tests/fixtures/__bare-name-extends.jsonc test in load.test.ts.)
   const { config: raw } = await c12LoadConfig({
     cwd,
     configFile,

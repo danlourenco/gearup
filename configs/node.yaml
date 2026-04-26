@@ -1,9 +1,0 @@
-version: 1
-name: node
-description: "Node.js via nvm (Node Version Manager)"
-
-steps:
-  - name: nvm
-    type: curl-pipe-sh
-    url: https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh
-    check: '[ -s "$HOME/.nvm/nvm.sh" ]'

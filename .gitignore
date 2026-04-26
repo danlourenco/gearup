@@ -20,4 +20,5 @@
 # TypeScript / Bun
 node_modules/
 bin/
+dist/
 *.tsbuildinfo

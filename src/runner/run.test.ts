@@ -1,4 +1,5 @@
 import { describe, it, expect, mock } from "bun:test"
+import { FakeReporter } from "./progress"
 
 // Mock @clack/prompts BEFORE importing modules that use it (acquireElevation).
 mock.module("@clack/prompts", () => ({
@@ -298,5 +299,60 @@ describe("runInstall", () => {
       expect(report.steps[0]?.action).toBe("installed")
     }
     expect(exec.calls).toHaveLength(2)  // no extra pre-check call
+  })
+})
+
+describe("runInstall ProgressReporter integration", () => {
+  it("emits start/finish around each step (skip path)", async () => {
+    const exec = new FakeExec()
+    exec.queueResponse({ exitCode: 0 })  // step check: installed
+    const ctx = makeContext({ exec })
+
+    const config: Config = {
+      version: 1,
+      name: "skip-only",
+      steps: [{ type: "brew", name: "jq", formula: "jq" }],
+    }
+
+    const reporter = new FakeReporter()
+    const report = await runInstall(config, ctx, reporter)
+
+    expect(report.ok).toBe(true)
+    expect(reporter.events).toEqual([
+      { kind: "start", label: "[1/1] jq: checking…" },
+      { kind: "finish", label: "[1/1] jq: already installed" },
+    ])
+  })
+
+  it("emits start/update/finish around install + post_install", async () => {
+    const exec = new FakeExec()
+    exec.queueResponse({ exitCode: 1 })  // check: not installed
+    exec.queueResponse({ exitCode: 0 })  // install: ok
+    exec.queueResponse({ exitCode: 0 })  // post_install: ok
+    const ctx = makeContext({ exec })
+
+    const config: Config = {
+      version: 1,
+      name: "with-post",
+      steps: [
+        {
+          type: "shell",
+          name: "rust",
+          install: "true",
+          check: "false",
+          post_install: ["echo done"],
+        },
+      ],
+    }
+
+    const reporter = new FakeReporter()
+    await runInstall(config, ctx, reporter)
+
+    const kinds = reporter.events.map((e) => e.kind)
+    expect(kinds).toEqual(["start", "update", "update", "finish"])
+    expect(reporter.events[0]?.label).toContain("checking")
+    expect(reporter.events[1]?.label).toContain("installing")
+    expect(reporter.events[2]?.label).toContain("post-install")
+    expect(reporter.events[3]?.label).toContain("installed")
   })
 })

@@ -1,95 +1,92 @@
 # gearup
 
-An open-source, config-driven macOS developer-machine bootstrap CLI built with [Go](https://go.dev) and the [Charm](https://charm.sh) ecosystem.
+An open-source, config-driven macOS developer-machine bootstrap CLI built with [Bun](https://bun.sh) and the [unjs](https://unjs.io) ecosystem ([c12](https://github.com/unjs/c12), [confbox](https://github.com/unjs/confbox), [citty](https://github.com/unjs/citty)) plus [Valibot](https://valibot.dev), [execa](https://github.com/sindresorhus/execa), and [Clack](https://github.com/natemoo-re/clack).
 
-Define your team's toolchain in a YAML config, run `gearup run`, and get a fully provisioned dev machine in minutes. Every step is idempotent — re-running skips what's already installed.
+Define your team's toolchain in a JSONC, YAML, or TOML config, run `gearup run`, and get a fully provisioned dev machine in minutes. Every step is idempotent — re-running skips what's already installed.
 
 ## Quick start
 
-### Install (no Go required)
+### Install (no Bun required)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/danlourenco/gearup/master/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/danlourenco/gearup/main/install.sh | bash
 ```
 
-Detects your architecture, downloads the latest release to `~/.local/bin/`, and verifies the install. No `sudo` required.
-
-Default configs (backend, frontend, etc.) are embedded in the binary. On first `gearup run`, they're automatically extracted to `~/.config/gearup/configs/`. To reset defaults or see what's available:
-
-```bash
-gearup init          # write/refresh default configs
-gearup init --force  # overwrite any customizations with defaults
-```
+Detects your architecture (`arm64` / `x64`), downloads the latest Bun-compiled binary to `~/.local/bin/`, verifies the SHA256 checksum, and installs. No `sudo` required.
 
 To install to a different location:
 
 ```bash
-GEARUP_INSTALL_DIR=~/bin curl -fsSL https://raw.githubusercontent.com/danlourenco/gearup/master/install.sh | bash
+GEARUP_INSTALL_DIR=~/bin curl -fsSL https://raw.githubusercontent.com/danlourenco/gearup/main/install.sh | bash
 ```
 
-### Build from source (requires Go 1.22+)
+Default configs (`base`, `backend`, `frontend`, etc.) are embedded in the binary. On first run, they're automatically extracted to `~/.config/gearup/configs/`. To reset defaults or refresh them after a release:
 
 ```bash
-go build -o gearup ./cmd/gearup
-
-# Pick a config interactively
-./gearup run
-
-# Or specify one directly
-./gearup run --config ./configs/backend.jsonc
+gearup init          # write any missing defaults; preserve customizations
+gearup init --force  # overwrite all customizations with the embedded defaults
 ```
 
-On first run you'll see an interactive picker listing discovered configs. Select one, and gearup walks through each step with an animated progress indicator:
+### Pick and run interactively
 
+```bash
+gearup run    # presents a picker of available configs, then runs the chosen one
 ```
-CONFIG: Backend  (12 steps)
 
-  ✓ [1/12] Homebrew  already installed
-  ✓ [2/12] Git  already installed
-  ⠋ [3/12] jq  installing... 2.1s
-  ✓ [3/12] jq  installed (3.6s)
-  ✓ [4/12] nvm  already installed
-  ...
+Or specify directly:
 
-Done.
-Log: ~/.local/state/gearup/logs/20260415-211527-Backend.log
+```bash
+gearup run --config ~/.config/gearup/configs/backend.jsonc
+gearup plan --config ~/.config/gearup/configs/backend.jsonc   # check-only
 ```
+
+### Build from source (requires Bun)
+
+```bash
+git clone https://github.com/danlourenco/gearup.git
+cd gearup
+bun install
+bun run src/cli.ts version
+bun build src/cli.ts --compile --external=giget --outfile=bin/gearup   # build local binary
+```
+
+> **Note on `--external=giget`:** the compiled binary excludes `giget`, the helper c12 uses to fetch `github:`/`https:` extends. This means **`extends: ["github:..."]` works in dev (`bun run`) but not in the compiled binary**. Local-path and package-name extends still work in both.
 
 ## How it works
 
-Every gearup config file has the same shape — there is no distinction between an "entry point" and a "reusable component." A config can declare steps directly, extend other configs by path, or both.
-
-Composition is via `extends: [path, ...]`. Each path is resolved relative to the config file. Extensions are required for non-JS configs (`./base.jsonc`, `./jvm.yaml`, etc.). c12 also supports npm package names and `github:owner/repo` references for shared team configs.
-
 ```
-configs/
-├── backend.jsonc       ← extends: [./base.jsonc, ./jvm.jsonc, ./containers.jsonc, ./aws-k8s.jsonc, ./node.jsonc]
-├── frontend.jsonc      ← extends: [./base.jsonc, ./node.jsonc]
-├── base.jsonc          (Homebrew, Git, jq)
-├── jvm.jsonc           (OpenJDK 21 + system symlink)
-├── containers.jsonc    (Docker CLI, Compose plugin, Colima)
-├── aws-k8s.jsonc       (AWS CLI, aws-iam-authenticator, kubectl)
-└── node.jsonc          (nvm)
+argv → CLI router (citty) → Config loader (c12 + confbox) → Validator (Valibot)
+       → Runner → Handler registry → exec (execa, wrapped for logging)
 ```
 
-### Example config
+Configs are JSONC/YAML/TOML files with an `extends:` array for composition. Each config has a `name`, optional `description`, optional `platform` constraints, optional `elevation:` block, and a `steps` map keyed by step name.
+
+When you run `gearup plan` or `gearup run` and the chosen config has `extends:`, [c12](https://github.com/unjs/c12) recursively loads each referenced config and deep-merges them with [defu](https://github.com/unjs/defu) defaults. **On step name collisions, the current (override) config wins.**
+
+### Picker resolution
+
+When `--config` is omitted, gearup discovers configs in two locations:
+
+1. `~/.config/gearup/configs/` (or `$XDG_CONFIG_HOME/gearup/configs/`) — user-global
+2. `./configs/` (relative to your current working directory) — project-local
+
+Configs are presented as a flat union. **On name collision, the project-local config wins** (closer to your `pwd`, presumably more relevant). Each entry shows its `name`, `description`, and source label (`[user]` or `[project]`).
+
+If both locations are empty on first run, gearup auto-extracts the embedded defaults to the user dir before prompting.
+
+### Example config (entry-point)
 
 ```jsonc
-// configs/backend.jsonc
+// ~/.config/gearup/configs/backend.jsonc
 {
   "version": 1,
   "name": "Backend",
   "description": "Full macOS developer toolchain for backend/infra work",
-
-  "platform": {
-    "os": ["darwin"]
-  },
-
+  "platform": { "os": ["darwin"] },
   "elevation": {
-    "message": "Some steps need admin permissions. Elevate now, then press Continue.",
+    "message": "Some steps need admin permissions. Elevate now, then continue.",
     "duration": "180s"
   },
-
   "extends": [
     "./base.jsonc",
     "./jvm.jsonc",
@@ -100,15 +97,16 @@ configs/
 }
 ```
 
+Note: extends array entries **must include the file extension** for non-JS configs. `./base.jsonc` works; `./base` does not.
+
 ### Example reusable config
 
 ```jsonc
-// configs/base.jsonc
+// ~/.config/gearup/configs/base.jsonc
 {
   "version": 1,
   "name": "base",
   "description": "Homebrew + universal core CLI tools (git, jq)",
-
   "steps": {
     "Homebrew": {
       "type": "curl-pipe-sh",
@@ -128,51 +126,54 @@ configs/
 }
 ```
 
+`extends:` and `steps:` can coexist — extended configs' steps are merged in first, then the current config's steps are layered on top with override semantics.
+
 ## Step types
 
-Each step in a config declares a `type` that determines how it's installed and checked.
+Each step in `steps` declares a `type` that determines how it's installed and checked.
 
 | Type | Installs via | Auto-check | Explicit `check:` |
 |---|---|---|---|
 | `brew` | `brew install <formula>` | `brew list --formula <formula>` | Optional override |
 | `brew-cask` | `brew install --cask <cask>` | `brew list --cask <cask>` | Optional override |
-| `curl-pipe-sh` | `curl -fsSL <url> \| bash` | None | **Required** |
-| `git-clone` | `git clone <repo> <dest>` | Directory exists at `dest` | Not needed |
+| `curl-pipe-sh` | `curl -fsSL <url> \| <shell>` | None | **Required** |
+| `git-clone` | `git clone [--branch <ref>] <repo> <dest>` | Directory exists at `dest` | Not needed |
 | `shell` | User-provided `install:` command | None | **Required** |
 
 Every step is idempotent: the `check` command runs first, and if it exits 0 the install is skipped.
 
 Any step type can include `post_install:` — a list of shell commands that run after a successful install (skipped if the step was already installed):
 
-```yaml
-steps:
-  - name: Colima
-    type: brew
-    formula: colima
-    post_install:
-      - colima start --cpu 4 --memory 8
+```jsonc
+{
+  "Colima": {
+    "type": "brew",
+    "formula": "colima",
+    "post_install": ["colima start --cpu 4 --memory 8"]
+  }
+}
 ```
 
 ## Commands
 
 ```
-gearup run      [--config <path>] [--dry-run] [--yes]
 gearup plan     [--config <path>]
+gearup run      [--config <path>]
 gearup init     [--force]
 gearup version
 ```
 
-### `gearup run`
-
-Executes a config. Without `--config`, discovers configs in `$XDG_CONFIG_HOME/gearup/configs/` and `./configs/` and shows an interactive picker.
-
 ### `gearup plan`
 
-Alias for `gearup run --dry-run`. Runs every step's check without installing anything. Prints a styled preview showing what would happen.
+Runs every step's `check` without installing anything. Prints a styled preview showing what would happen.
 
 Exit codes:
 - `0` — machine is fully provisioned (nothing would run)
 - `10` — one or more steps would install (CI-friendly: "machine not up to date")
+
+### `gearup run`
+
+Runs `check` per step; if a step is not installed, runs its install. Then runs `post_install` commands if any. Stops on first error (fail-fast). Steps with `requires_elevation: true` run first if the config has an `elevation:` block — gearup shows a confirmation banner before they run.
 
 ### `gearup init`
 
@@ -182,71 +183,70 @@ Writes the embedded default configs to `~/.config/gearup/configs/`. Existing fil
 
 | Flag | Description |
 |---|---|
-| `--config <path>` | Path to config YAML. Omit to pick interactively. |
-| `--dry-run` | Check only, don't install. Exit 10 if anything would run. |
-| `--yes` | Auto-approve the elevation confirmation prompt (for scripted/CI use). |
+| `--config <path>` | Path to config (JSONC/YAML/TOML; extension-less paths are also accepted). Omit to pick interactively. |
+| `--force` | (`init` only) Overwrite existing files. |
 
 ## Elevation
 
-Steps that need admin permissions declare `requires_elevation: true`. When a config includes an `elevation:` block, gearup shows a styled banner and waits for you to confirm before running those steps:
+Steps that need admin permissions declare `requires_elevation: true`. When a config includes an `elevation:` block, gearup shows a styled banner and waits for confirmation before running those steps:
 
-```yaml
-elevation:
-  message: "Some steps need admin permissions. Elevate now, then press Continue."
-  duration: 180s    # advisory countdown
+```jsonc
+{
+  "elevation": {
+    "message": "Some steps need admin permissions. Elevate now, then continue.",
+    "duration": "180s"
+  }
+}
 ```
 
 gearup never invokes elevation itself — it pauses and lets you acquire permissions through whatever mechanism your organization uses (MDM scripts, Touch ID, native sudo, etc.). If no `elevation:` block is set, steps that need sudo prompt natively.
 
-Smart suppression: if all elevation-required steps are already installed, the banner is skipped entirely.
+**Smart suppression:** if all elevation-required steps are already installed, the banner is skipped entirely.
 
 ## Log files
 
 Every `gearup run` writes a log file at:
 
 ```
-$XDG_STATE_HOME/gearup/logs/<timestamp>-<config>.log
+$XDG_STATE_HOME/gearup/logs/<YYYYMMDD>-<HHMMSS>-<config>.log
 ```
 
 (Falls back to `~/.local/state/gearup/logs/` if `XDG_STATE_HOME` is unset.)
 
-Check and install command output is captured here. The terminal stays clean — only step status lines and the log path are shown. On failure, the relevant captured output is printed inline alongside the log path.
+Each subprocess invocation is captured: argv, exit code, duration, full stdout, full stderr. The terminal stays clean — only step status (via Clack spinner) and the log path are shown. On failure, the relevant captured output is shown alongside the log path.
 
 ## Creating your own configs
 
-Start by running `gearup init` to see the default configs at `~/.config/gearup/configs/`. Edit them directly, or use them as templates:
+Run `gearup init` to extract the default configs at `~/.config/gearup/configs/`. Edit them directly, or use them as templates:
 
-1. Create a directory for your configs.
-2. Write one config file per concern (base tools, language runtimes, cloud tooling, etc.) using JSONC, YAML, or TOML.
+1. Pick a directory for your configs (the user dir, or `./configs/` in your project for team-shared).
+2. Write one config file per concern (base tools, language runtimes, cloud tooling, etc.) in JSONC, YAML, or TOML.
 3. Create an entry-point config that lists `extends:` with explicit paths and extensions:
    ```jsonc
    {
      "version": 1,
-     "name": "Backend",
+     "name": "my-stack",
      "extends": [
        "./base.jsonc",
-       "./jvm.jsonc",
-       "github:my-team/configs/aws.yaml"
+       "./node.jsonc"
      ]
    }
    ```
-4. Run `gearup run --config <your-config.jsonc>`.
+4. Run `gearup run --config <your-config.jsonc>` (or just `gearup run` and pick from the list).
 
-## Building from source
+`extends:` accepts:
+- **Relative paths**: `./base.jsonc` (relative to the current config file)
+- **Absolute paths**: `/path/to/base.jsonc`
+- **`github:` references** (dev mode only): `github:owner/repo/path/to/file.jsonc`
+- **`https:` URLs** (dev mode only): `https://example.com/configs/base.jsonc`
 
-Requires Go 1.22 or later.
-
-```bash
-git clone https://github.com/danlourenco/gearup.git
-cd gearup
-go build -o gearup ./cmd/gearup
-./gearup version
-```
+For non-JS configs (jsonc/yaml/toml), the **file extension is required** in extends entries.
 
 ## Running tests
 
 ```bash
-go test ./...
+bun test
+bun run typecheck
 ```
 
 ## License

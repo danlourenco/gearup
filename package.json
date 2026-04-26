@@ -1,6 +1,6 @@
 {
   "name": "gearup",
-  "version": "0.2.0-alpha.1",
+  "version": "0.3.0",
   "type": "module",
   "bin": {
     "gearup": "./src/cli.ts"
@@ -9,7 +9,8 @@
     "dev": "bun run src/cli.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "build": "bun build src/cli.ts --compile --outfile=bin/gearup"
+    "build": "bun build src/cli.ts --compile --outfile=bin/gearup",
+    "build:release": "bun run scripts/build-release.ts"
   },
   "dependencies": {
     "@clack/prompts": "^0.7.0",

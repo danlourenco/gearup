@@ -1,11 +1,13 @@
 import { defineCommand } from "citty"
+import * as clack from "@clack/prompts"
 import { loadConfig } from "../config/load"
-import { runInstall, type InstallStepReport } from "../runner/run"
+import { runInstall } from "../runner/run"
 import { makeContext } from "../context"
 import { ExecaExec } from "../exec/execa"
 import { LoggingExec } from "../exec/logging"
 import { openFileLogger } from "../log/file"
 import { logFilePath } from "../log/xdg"
+import { createClackReporter } from "../ui/reporter"
 
 export const runCommand = defineCommand({
   meta: {
@@ -26,37 +28,23 @@ export const runCommand = defineCommand({
     const exec = new LoggingExec(new ExecaExec(), logger)
     const ctx = makeContext({ exec, log: logger })
 
-    try {
-      const report = await runInstall(config, ctx)
+    clack.intro(`gearup run · ${config.name}`)
 
-      printReport(report.configName, report.steps)
+    try {
+      const reporter = createClackReporter()
+      const report = await runInstall(config, ctx, reporter)
 
       if (!report.ok) {
-        console.error("")
-        console.error(`✗ Failed at step: ${report.failedAt}`)
-        console.error(`  ${report.error}`)
-        console.error("")
-        console.error(`Log: ${logger.path()}`)
+        clack.log.error(`Failed at step: ${report.failedAt}`)
+        clack.note(report.error, "error")
+        clack.outro(`Log: ${logger.path()}`)
         return 1
       }
 
-      console.log("")
-      console.log("Done.")
-      console.log(`Log: ${logger.path()}`)
+      clack.outro(`Done · Log: ${logger.path()}`)
       return 0
     } finally {
       await logger.close()
     }
   },
 })
-
-function printReport(configName: string, steps: InstallStepReport[]): void {
-  console.log(`CONFIG: ${configName}  (${steps.length} step${steps.length === 1 ? "" : "s"})`)
-  console.log("")
-  steps.forEach((step, i) => {
-    const idx = `[${i + 1}/${steps.length}]`
-    const marker = "✓"
-    const label = step.action === "skipped" ? "already installed" : "installed"
-    console.log(`  ${marker} ${idx} ${step.name}  ${label}`)
-  })
-}

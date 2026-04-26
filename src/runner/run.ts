@@ -4,6 +4,8 @@ import type { CheckResult, InstallResult } from "../steps/types"
 import { handlers } from "../steps"
 import { runPostInstall } from "../steps/post-install"
 import { acquireElevation } from "../elevation/acquire"
+import type { ProgressReporter } from "./progress"
+import { NoopReporter } from "./progress"
 
 export type StepStatus = "installed" | "would-install"
 
@@ -92,7 +94,11 @@ async function safeCheck(step: Step, ctx: Context): Promise<{ ok: true; result: 
   }
 }
 
-export async function runInstall(config: Config, ctx: Context): Promise<RunReport> {
+export async function runInstall(
+  config: Config,
+  ctx: Context,
+  progress: ProgressReporter = new NoopReporter(),
+): Promise<RunReport> {
   const allSteps = config.steps ?? []
   const completed: InstallStepReport[] = []
 
@@ -130,14 +136,19 @@ export async function runInstall(config: Config, ctx: Context): Promise<RunRepor
     }
   }
 
-  // When elevation was acquired, run elevation-required steps first to use the
-  // admin window before it expires (matches Go behavior). Otherwise run in
-  // declared order — partitioning would re-order steps unnecessarily.
   const ordered = needsElevation ? [...elevSteps, ...regSteps] : allSteps
+  const total = ordered.length
 
-  for (const step of ordered) {
+  for (let i = 0; i < ordered.length; i++) {
+    const step = ordered[i]!
+    const stepNum = i + 1
+    const prefix = `[${stepNum}/${total}] ${step.name}`
+
+    progress.start(`${prefix}: checking…`)
+
     const checked = await safeCheck(step, ctx)
     if (!checked.ok) {
+      progress.finish(`${prefix}: check failed`)
       return {
         ok: false, configName: config.name, steps: completed,
         failedAt: step.name, error: `check failed for ${step.name}: ${checked.error}`,
@@ -145,12 +156,16 @@ export async function runInstall(config: Config, ctx: Context): Promise<RunRepor
     }
 
     if (checked.result.installed) {
+      progress.finish(`${prefix}: already installed`)
       completed.push({ name: step.name, type: step.type, action: "skipped" })
       continue
     }
 
+    progress.update(`${prefix}: installing…`)
+
     const installResult = await dispatchInstall(step, ctx)
     if (!installResult.ok) {
+      progress.finish(`${prefix}: install failed`)
       return {
         ok: false, configName: config.name, steps: completed,
         failedAt: step.name, error: installResult.error,
@@ -158,8 +173,10 @@ export async function runInstall(config: Config, ctx: Context): Promise<RunRepor
     }
 
     if (step.post_install && step.post_install.length > 0) {
+      progress.update(`${prefix}: post-install…`)
       const postResult = await runPostInstall(step.post_install, step.name, ctx)
       if (!postResult.ok) {
+        progress.finish(`${prefix}: post-install failed`)
         return {
           ok: false, configName: config.name, steps: completed,
           failedAt: step.name, error: postResult.error,
@@ -167,6 +184,7 @@ export async function runInstall(config: Config, ctx: Context): Promise<RunRepor
       }
     }
 
+    progress.finish(`${prefix}: installed`)
     completed.push({ name: step.name, type: step.type, action: "installed" })
   }
 

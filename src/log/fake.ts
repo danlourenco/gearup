@@ -4,7 +4,7 @@ export class FakeLogger implements Logger {
   lines: string[] = []
   closed = false
 
-  constructor(private syntheticPath: string = "/fake/log") {}
+  constructor(private syntheticPath: string = "<no log>") {}
 
   log(line: string): void {
     if (this.closed) {

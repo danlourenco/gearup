@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "name": "Frontend",
+  "description": "macOS developer toolchain for frontend work (Node + core CLI)",
+  "platform": {
+    "os": ["darwin"]
+  },
+  "extends": [
+    "./base.jsonc",
+    "./node.jsonc"
+  ]
+}

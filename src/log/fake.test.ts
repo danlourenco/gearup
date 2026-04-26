@@ -16,6 +16,11 @@ describe("FakeLogger", () => {
     expect(log.path()).toBe("/fake/path.log")
   })
 
+  it("defaults the synthetic path to <no log>", () => {
+    const log = new FakeLogger()
+    expect(log.path()).toBe("<no log>")
+  })
+
   it("close() resolves and is idempotent", async () => {
     const log = new FakeLogger()
     await log.close()
