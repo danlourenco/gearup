@@ -27,6 +27,20 @@ gearup init          # write any missing defaults; preserve customizations
 gearup init --force  # overwrite all customizations with the embedded defaults
 ```
 
+### Uninstall
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/danlourenco/gearup/main/uninstall.sh | bash
+```
+
+Removes the binary at `~/.local/bin/gearup` (or `$GEARUP_INSTALL_DIR`). User configs in `~/.config/gearup/` and logs in `~/.local/state/gearup/` are kept by default. Pipe-to-bash isn't interactive, so to remove everything pass `GEARUP_PURGE=1`:
+
+```bash
+GEARUP_PURGE=1 curl -fsSL https://raw.githubusercontent.com/danlourenco/gearup/main/uninstall.sh | bash
+```
+
+Or run interactively (clone the repo first or save the script locally) to be prompted per directory.
+
 ### Pick and run interactively
 
 ```bash
