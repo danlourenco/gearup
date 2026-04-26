@@ -10,10 +10,10 @@ describe("handlers registry", () => {
     }
   })
 
-  it("has no install handler yet (Phase 2)", () => {
-    for (const key of Object.keys(handlers)) {
-      const handler = (handlers as Record<string, { install?: unknown }>)[key]
-      expect(handler?.install).toBeUndefined()
+  it("has an install function for every step type", () => {
+    const expectedTypes = ["brew", "brew-cask", "curl-pipe-sh", "git-clone", "shell"]
+    for (const type of expectedTypes) {
+      expect(typeof (handlers as Record<string, { install: unknown }>)[type]?.install).toBe("function")
     }
   })
 })

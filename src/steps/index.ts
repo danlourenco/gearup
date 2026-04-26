@@ -1,17 +1,17 @@
 import type { Step } from "../schema"
 import type { Handler } from "./types"
-import { checkBrew } from "./brew"
-import { checkBrewCask } from "./brew-cask"
-import { checkCurlPipe } from "./curl-pipe-sh"
-import { checkGitClone } from "./git-clone"
-import { checkShell } from "./shell"
+import { checkBrew, installBrew } from "./brew"
+import { checkBrewCask, installBrewCask } from "./brew-cask"
+import { checkCurlPipe, installCurlPipe } from "./curl-pipe-sh"
+import { checkGitClone, installGitClone } from "./git-clone"
+import { checkShell, installShell } from "./shell"
 
 export const handlers = {
-  brew:           { check: checkBrew },
-  "brew-cask":    { check: checkBrewCask },
-  "curl-pipe-sh": { check: checkCurlPipe },
-  "git-clone":    { check: checkGitClone },
-  shell:          { check: checkShell },
+  brew:           { check: checkBrew,     install: installBrew     },
+  "brew-cask":    { check: checkBrewCask, install: installBrewCask },
+  "curl-pipe-sh": { check: checkCurlPipe, install: installCurlPipe },
+  "git-clone":    { check: checkGitClone, install: installGitClone },
+  shell:          { check: checkShell,    install: installShell    },
 } satisfies { [K in Step["type"]]: Handler<Extract<Step, { type: K }>> }
 
 export type Handlers = typeof handlers

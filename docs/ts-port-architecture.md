@@ -109,7 +109,7 @@ Phase 1 builds the whole pipeline but only implements `check` in handlers. Phase
 | CLI framework | **citty** |
 | Subprocess | **execa** behind an `Exec` interface |
 | Test runner | **`bun:test`** |
-| Picker / TUI (Phase 4) | **@clack/prompts** |
+| Elevation banner (Phase 2) + Picker (Phase 4) | **@clack/prompts** |
 | XDG paths (Phase 3) | **pathe** |
 
 ## File layout

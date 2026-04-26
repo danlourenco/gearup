@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "name": "safe-install",
+  "steps": [
+    {
+      "type": "shell",
+      "name": "marker",
+      "install": "touch /tmp/gearup-e2e-marker",
+      "check": "test -f /tmp/gearup-e2e-marker",
+      "post_install": ["echo post-install ran > /tmp/gearup-e2e-post"]
+    }
+  ]
+}

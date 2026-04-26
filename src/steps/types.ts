@@ -12,6 +12,5 @@ export type InstallResult =
 
 export type Handler<S extends Step> = {
   check: (step: S, ctx: Context) => Promise<CheckResult>
-  // `install?` is Phase 2 scaffolding; Phase 1 only implements `check`.
-  install?: (step: S, ctx: Context) => Promise<InstallResult>
+  install: (step: S, ctx: Context) => Promise<InstallResult>
 }
