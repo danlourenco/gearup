@@ -15,6 +15,7 @@ describe("checkBrewCask", () => {
 
     expect(result.installed).toBe(true)
     expect(exec.calls[0]?.argv).toEqual(["brew", "list", "--cask", "iterm2"])
+    expect(exec.calls[0]?.shell).toBeFalsy()
   })
 
   it("returns installed=false on non-zero exit", async () => {

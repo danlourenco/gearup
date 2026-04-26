@@ -158,4 +158,25 @@ describe("config schema", () => {
       v.parse(config, { version: 1 }),
     ).toThrow()
   })
+
+  it("parses a config with both extends and steps", () => {
+    const parsed = v.parse(config, {
+      version: 1,
+      name: "full",
+      extends: ["base"],
+      steps: [{ type: "brew", name: "jq", formula: "jq" }],
+    })
+    expect(parsed.extends).toHaveLength(1)
+    expect(parsed.steps).toHaveLength(1)
+  })
+
+  it("rejects an elevation block missing message", () => {
+    expect(() =>
+      v.parse(config, {
+        version: 1,
+        name: "x",
+        elevation: {},
+      }),
+    ).toThrow()
+  })
 })

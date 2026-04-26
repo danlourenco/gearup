@@ -54,6 +54,22 @@ describe("checkGitClone", () => {
     expect(result.installed).toBe(false)
   })
 
+  it("expands bare ~ to ctx.env.HOME", async () => {
+    const exec = new FakeExec()
+    exec.queueResponse({ exitCode: 0 })
+    const ctx = makeContext({ exec, env: { HOME: "/Users/test" } })
+
+    const step: GitCloneStep = {
+      type: "git-clone",
+      name: "homedir",
+      repo: "git@github.com:me/dotfiles.git",
+      dest: "~",
+    }
+    await checkGitClone(step, ctx)
+
+    expect(exec.calls[0]?.argv).toEqual(["test", "-d", "/Users/test"])
+  })
+
   it("runs step.check in shell when provided", async () => {
     const exec = new FakeExec()
     exec.queueResponse({ exitCode: 0 })

@@ -5,6 +5,8 @@ const platform = v.object({
   arch: v.optional(v.array(v.string())),
 })
 
+// `check` is optional here so brew/brew-cask/git-clone can fall back to a default;
+// curl-pipe-sh and shell override it to required because they have no sensible default.
 const baseFields = {
   name: v.pipe(v.string(), v.minLength(1)),
   check: v.optional(v.string()),
