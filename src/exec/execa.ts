@@ -21,8 +21,10 @@ export class ExecaExec implements Exec {
       reject: false,
     })
 
+    // exitCode fallback: 124 (GNU timeout convention) for timed-out runs;
+    // 1 for any other case where execa returned no exitCode (e.g., spawn error).
     return {
-      exitCode: result.exitCode ?? 0,
+      exitCode: result.exitCode ?? (result.timedOut ? 124 : 1),
       stdout: typeof result.stdout === "string" ? result.stdout : "",
       stderr: typeof result.stderr === "string" ? result.stderr : "",
       durationMs: Math.round(performance.now() - start),
