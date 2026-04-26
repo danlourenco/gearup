@@ -25,10 +25,7 @@ async function main() {
     const platform = target.replace(/^bun-/, "")  // e.g., "darwin-arm64"
     const outfile = path.join(outdir, `gearup-${platform}`)
 
-    // --external=giget: c12 depends on giget which pulls in node-fetch-native/proxy;
-    // that CJS shim has no "fetch" named export, causing bun bundler to error.
-    // giget is only used for remote config loading, which gearup doesn't use.
-    await $`bun build src/cli.ts --compile --target=${target} --outfile=${outfile} --external=giget`
+    await $`bun build src/cli.ts --compile --target=${target} --outfile=${outfile}`
 
     const checksum = await sha256(outfile)
     await fs.writeFile(`${outfile}.sha256`, `${checksum}  gearup-${platform}\n`)

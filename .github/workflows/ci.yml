@@ -25,7 +25,7 @@ jobs:
 
       - name: Smoke test the compiled binary
         run: |
-          bun build src/cli.ts --compile --outfile=bin/gearup --external=giget
+          bun build src/cli.ts --compile --outfile=bin/gearup
           ./bin/gearup --help
           ./bin/gearup plan --config tests/fixtures/single-brew.jsonc || EXIT=$?
           # plan exits 0 or 10 — both are acceptable

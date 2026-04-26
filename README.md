@@ -47,10 +47,8 @@ git clone https://github.com/danlourenco/gearup.git
 cd gearup
 bun install
 bun run src/cli.ts version
-bun build src/cli.ts --compile --external=giget --outfile=bin/gearup   # build local binary
+bun build src/cli.ts --compile --outfile=bin/gearup   # build local binary
 ```
-
-> **Note on `--external=giget`:** the compiled binary excludes `giget`, the helper c12 uses to fetch `github:`/`https:` extends. This means **`extends: ["github:..."]` works in dev (`bun run`) but not in the compiled binary**. Local-path and package-name extends still work in both.
 
 ## How it works
 
