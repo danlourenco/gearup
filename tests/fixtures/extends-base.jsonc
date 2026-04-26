@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "name": "extends-base",
+  "steps": {
+    "jq": { "type": "brew", "formula": "jq" }
+  }
+}

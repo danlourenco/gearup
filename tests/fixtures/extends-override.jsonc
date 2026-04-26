@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "name": "extends-override",
+  "extends": ["./extends-base.jsonc"],
+  "steps": {
+    "jq": { "type": "shell", "install": "echo override", "check": "false" }
+  }
+}
