@@ -21,6 +21,6 @@ export function makeContext(input: MakeContextInput): Context {
     exec: input.exec,
     cwd: input.cwd ?? process.cwd(),
     env: input.env ?? process.env,
-    log: input.log ?? new FakeLogger("/dev/null"),
+    log: input.log ?? new FakeLogger(),
   }
 }

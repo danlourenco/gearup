@@ -34,3 +34,16 @@ describe("logFilePath", () => {
     )
   })
 })
+
+describe("logDir edge cases", () => {
+  it("handles HOME containing spaces", () => {
+    const result = logDir({ HOME: "/Users/Test User" })
+    expect(result).toBe("/Users/Test User/.local/state/gearup/logs")
+  })
+
+  it("handles XDG_STATE_HOME with trailing slash", () => {
+    const result = logDir({ XDG_STATE_HOME: "/var/state/", HOME: "/Users/test" })
+    // pathe.join normalizes the trailing slash
+    expect(result).toBe("/var/state/gearup/logs")
+  })
+})
