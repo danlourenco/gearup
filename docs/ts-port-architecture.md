@@ -71,6 +71,7 @@ Gearup is a config-driven runner with a replaceable handler registry. A user wri
 - **Why handlers in a registry instead of a switch?** Because `brew` and `git-clone` have essentially nothing in common except that they both conform to the same `{ check, install }` interface. Co-locating them in one switch statement spreads one step type's logic across many case branches over time; co-locating in one file per type keeps it cohesive.
 - **Why a Context object instead of globals?** Tests. With globals you'd need to monkey-patch `child_process` or use a mocking library. With a Context you construct a fake Context, pass it in, and your handler runs under test conditions with zero magic. Same mechanism production uses.
 - **Why split `check` and `install`?** Idempotency. `gearup plan` (dry-run) only needs `check`. `gearup run` needs both. The split is what makes "skip things already installed" a natural property of the system rather than logic grafted on top.
+- **Why Record-keyed steps?** Composition via `extends:` works naturally with c12+defu when steps are a Record keyed by name: the deep-merge collapses same-keyed entries with current-config-wins semantics. An array shape would have required a custom merger to dedup. The Record form is also stricter (can't express duplicates in a single config) and gives better error paths (`steps.Homebrew.formula` vs `steps[3].formula`). The internal `Step[]` view is recovered via a Valibot transform that injects `name` from the key.
 
 ## Working decisions (as of 2026-04-24)
 
@@ -89,7 +90,7 @@ Gearup is a config-driven runner with a replaceable handler registry. A user wri
 |---|---|
 | **1. Tracer: `plan`** | `gearup plan --config <path>` • c12+confbox parsing (all 3 formats) • single-file configs (no `extends:` yet) • all 5 step types' **check** handlers • stdout report • exit codes 0/10 |
 | **2. `run` + full step types** | Install dispatch for all 5 types • `post_install` hooks • elevation pause banner • still stdout, no log file yet |
-| **3. Robustness** | `extends:` composition (c12's layered merge + a name→path pre-resolver) • XDG logging with captured subprocess output • inline failure printing |
+| **3. Robustness** | `extends:` composition via c12 (paths, packages, github: refs) • Record-keyed steps schema (drops the dedup-merger problem) • `sources:` field removed in favor of explicit paths • curl-pipe-sh schema hardening (URL/shell/args validation) • XDG logging via FileLogger + LoggingExec decorator with captured subprocess output and inline failure printing |
 | **4. Polish** | Interactive picker when `--config` omitted (Clack) • animated spinners / styled banners • `gearup init` + embedded default configs • release pipeline (Bun compile matrix + install.sh rewrite) |
 
 Phase 1 builds the whole pipeline but only implements `check` in handlers. Phase 2 fills in `install`. Phase 3 adds `extends:` inside the Config loader and a `log` on the Context. Phase 4 adds a picker before the Config loader and a prettier output layer after the Runner.
@@ -103,7 +104,7 @@ Phase 1 builds the whole pipeline but only implements `check` in handlers. Phase
 | Concern | Choice |
 |---|---|
 | Runtime | **Bun** |
-| Config loader | **c12 + confbox** (parses JSONC/YAML/TOML, handles `extends:` in Phase 3) |
+| Config loader | **c12 + confbox** — active since Phase 3: loads JSONC/YAML/TOML, resolves `extends:` references recursively (paths, packages, `github:` refs), deep-merges with defu (current config wins on collision) |
 | Canonical format | **JSONC** (YAML/TOML parsed but not advocated) |
 | Schema validation | **Valibot** (+ `@valibot/to-json-schema` for the published schema) |
 | CLI framework | **citty** |

@@ -1,6 +1,6 @@
 version: 1
 name: single-brew
 steps:
-  - type: brew
-    name: jq
+  jq:
+    type: brew
     formula: jq

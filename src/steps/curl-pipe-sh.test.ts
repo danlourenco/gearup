@@ -55,7 +55,7 @@ describe("installCurlPipe", () => {
     const result = await installCurlPipe(step, ctx)
 
     expect(result.ok).toBe(true)
-    expect(exec.calls[0]?.argv).toEqual(["curl -fsSL https://example.com/install.sh | bash"])
+    expect(exec.calls[0]?.argv).toEqual([`curl -fsSL 'https://example.com/install.sh' | 'bash'`])
     expect(exec.calls[0]?.shell).toBe(true)
   })
 
@@ -73,7 +73,7 @@ describe("installCurlPipe", () => {
     }
     await installCurlPipe(step, ctx)
 
-    expect(exec.calls[0]?.argv).toEqual(["curl -fsSL https://sh.rustup.rs | sh"])
+    expect(exec.calls[0]?.argv).toEqual([`curl -fsSL 'https://sh.rustup.rs' | 'sh'`])
   })
 
   it("appends `-s -- <args>` when args is non-empty", async () => {
@@ -92,7 +92,7 @@ describe("installCurlPipe", () => {
     await installCurlPipe(step, ctx)
 
     expect(exec.calls[0]?.argv).toEqual([
-      "curl -fsSL https://sh.rustup.rs | sh -s -- -y --default-toolchain stable",
+      `curl -fsSL 'https://sh.rustup.rs' | 'sh' -s -- '-y' '--default-toolchain' 'stable'`,
     ])
   })
 
@@ -114,5 +114,25 @@ describe("installCurlPipe", () => {
       expect(result.error).toContain("curl-pipe-sh missing")
       expect(result.error).toContain("exit 22")
     }
+  })
+
+  it("shell-quotes URL containing metacharacters (defense-in-depth against bypassed schema)", async () => {
+    const exec = new FakeExec()
+    exec.queueResponse({ exitCode: 0 })
+    const ctx = makeContext({ exec })
+
+    // Bypass schema: construct a step with a URL containing a shell metacharacter.
+    // (In practice the schema's v.url() prevents this; this test documents the install-layer guarantee.)
+    const step: CurlPipeStep = {
+      type: "curl-pipe-sh",
+      name: "evil",
+      url: "https://evil.com/$(rm -rf /)" as string,
+      check: "false",
+    }
+    await installCurlPipe(step, ctx)
+
+    // Verify the URL was wrapped in single quotes — the metacharacters become literal.
+    expect(exec.calls[0]?.argv[0]).toContain("'https://evil.com/$(rm -rf /)'")
+    expect(exec.calls[0]?.shell).toBe(true)
   })
 })

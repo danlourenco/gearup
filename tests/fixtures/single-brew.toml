@@ -1,7 +1,6 @@
 version = 1
 name = "single-brew"
 
-[[steps]]
+[steps.jq]
 type = "brew"
-name = "jq"
 formula = "jq"

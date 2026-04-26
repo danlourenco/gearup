@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "name": "single-brew",
+  "name": "extends-base",
   "steps": {
     "jq": { "type": "brew", "formula": "jq" }
   }

@@ -5,13 +5,12 @@
     "message": "This run needs admin permissions for one step. Acquire them, then continue.",
     "duration": "180s"
   },
-  "steps": [
-    {
+  "steps": {
+    "needs-admin": {
       "type": "shell",
-      "name": "needs-admin",
       "install": "true",
       "check": "false",
       "requires_elevation": true
     }
-  ]
+  }
 }

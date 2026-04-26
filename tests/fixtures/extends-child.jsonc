@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "name": "extends-child",
+  "extends": ["./extends-base.jsonc"],
+  "steps": {
+    "git": { "type": "brew", "formula": "git" }
+  }
+}
