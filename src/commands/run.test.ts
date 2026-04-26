@@ -26,14 +26,13 @@ describe("run command", () => {
     await fs.writeFile(fixturePath, JSON.stringify({
       version: 1,
       name: "run-success",
-      steps: [
-        {
+      steps: {
+        marker: {
           type: "shell",
-          name: "marker",
           install: `touch ${tmpMarker}`,
           check: `test -f ${tmpMarker}`,
         },
-      ],
+      },
     }))
 
     try {
@@ -59,14 +58,13 @@ describe("run command", () => {
     await fs.writeFile(fixturePath, JSON.stringify({
       version: 1,
       name: "run-fail",
-      steps: [
-        {
+      steps: {
+        "always-fails": {
           type: "shell",
-          name: "always-fails",
           install: "false",
           check: "false",
         },
-      ],
+      },
     }))
 
     try {

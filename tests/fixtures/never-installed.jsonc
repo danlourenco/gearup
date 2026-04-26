@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "never-installed",
-  "steps": [
-    { "type": "shell", "name": "always-missing", "install": "true", "check": "false" }
-  ]
+  "steps": {
+    "always-missing": { "type": "shell", "install": "true", "check": "false" }
+  }
 }

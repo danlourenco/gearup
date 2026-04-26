@@ -74,9 +74,9 @@ describe("e2e: gearup run (safe-install)", () => {
     await fs.writeFile(failFixturePath, JSON.stringify({
       version: 1,
       name: "e2e-fail",
-      steps: [
-        { type: "shell", name: "always-fails", install: "false", check: "false" },
-      ],
+      steps: {
+        "always-fails": { type: "shell", install: "false", check: "false" },
+      },
     }))
 
     try {

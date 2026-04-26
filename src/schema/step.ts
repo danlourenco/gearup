@@ -7,36 +7,36 @@ const platform = v.object({
 
 // `check` is optional here so brew/brew-cask/git-clone can fall back to a default;
 // curl-pipe-sh and shell override it to required because they have no sensible default.
+// `name` is NOT in the body — it lives on the parent map's key.
 const baseFields = {
-  name: v.pipe(v.string(), v.minLength(1)),
   check: v.optional(v.string()),
   requires_elevation: v.optional(v.boolean()),
   post_install: v.optional(v.array(v.string())),
   platform: v.optional(platform),
 }
 
-export const brewStep = v.object({
+export const brewStepBody = v.object({
   type: v.literal("brew"),
   ...baseFields,
   formula: v.pipe(v.string(), v.minLength(1)),
 })
 
-export const brewCaskStep = v.object({
+export const brewCaskStepBody = v.object({
   type: v.literal("brew-cask"),
   ...baseFields,
   cask: v.pipe(v.string(), v.minLength(1)),
 })
 
-export const curlPipeStep = v.object({
+export const curlPipeStepBody = v.object({
   type: v.literal("curl-pipe-sh"),
   ...baseFields,
-  url: v.pipe(v.string(), v.minLength(1)),
-  shell: v.optional(v.string()),
-  args: v.optional(v.array(v.string())),
+  url: v.pipe(v.string(), v.url()),
+  shell: v.optional(v.picklist(["bash", "sh", "zsh", "fish"])),
+  args: v.optional(v.array(v.pipe(v.string(), v.regex(/^\S+$/)))),
   check: v.pipe(v.string(), v.minLength(1)),
 })
 
-export const gitCloneStep = v.object({
+export const gitCloneStepBody = v.object({
   type: v.literal("git-clone"),
   ...baseFields,
   repo: v.pipe(v.string(), v.minLength(1)),
@@ -44,24 +44,26 @@ export const gitCloneStep = v.object({
   ref: v.optional(v.string()),
 })
 
-export const shellStep = v.object({
+export const shellStepBody = v.object({
   type: v.literal("shell"),
   ...baseFields,
   install: v.pipe(v.string(), v.minLength(1)),
   check: v.pipe(v.string(), v.minLength(1)),
 })
 
-export const step = v.variant("type", [
-  brewStep,
-  brewCaskStep,
-  curlPipeStep,
-  gitCloneStep,
-  shellStep,
+export const stepBody = v.variant("type", [
+  brewStepBody,
+  brewCaskStepBody,
+  curlPipeStepBody,
+  gitCloneStepBody,
+  shellStepBody,
 ])
 
-export type BrewStep = v.InferOutput<typeof brewStep>
-export type BrewCaskStep = v.InferOutput<typeof brewCaskStep>
-export type CurlPipeStep = v.InferOutput<typeof curlPipeStep>
-export type GitCloneStep = v.InferOutput<typeof gitCloneStep>
-export type ShellStep = v.InferOutput<typeof shellStep>
-export type Step = v.InferOutput<typeof step>
+// Internal types: each step has `name` (injected from the Record key during config parsing).
+type WithName<T> = T & { name: string }
+export type BrewStep = WithName<v.InferOutput<typeof brewStepBody>>
+export type BrewCaskStep = WithName<v.InferOutput<typeof brewCaskStepBody>>
+export type CurlPipeStep = WithName<v.InferOutput<typeof curlPipeStepBody>>
+export type GitCloneStep = WithName<v.InferOutput<typeof gitCloneStepBody>>
+export type ShellStep = WithName<v.InferOutput<typeof shellStepBody>>
+export type Step = WithName<v.InferOutput<typeof stepBody>>
