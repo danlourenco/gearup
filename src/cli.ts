@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { type CommandDef, defineCommand, runMain, runCommand } from "citty"
 import { planCommand } from "./commands/plan"
+import { runCommand as gearupRunCommand } from "./commands/run"
 import { versionCommand } from "./commands/version"
 import pkg from "../package.json" with { type: "json" }
 
@@ -12,6 +13,7 @@ const mainCommand = defineCommand({
   },
   subCommands: {
     plan: planCommand,
+    run: gearupRunCommand,
     version: versionCommand,
   },
 })
@@ -22,10 +24,16 @@ const rawArgs = process.argv.slice(2)
 // citty's runMain discards subcommand return values, so it is reserved for
 // meta paths (--help, --version, unknown args) that only need help rendering.
 // CommandDef<any> avoids a spurious contravariance error from mismatched ArgsDef shapes.
-const subCommands: Record<string, CommandDef<any>> = { plan: planCommand, version: versionCommand }
+const subCommands: Record<string, CommandDef<any>> = {
+  plan: planCommand,
+  run: gearupRunCommand,
+  version: versionCommand,
+}
 const cmdName = rawArgs[0]
 
-if (cmdName && cmdName in subCommands) {
+const isHelp = rawArgs.includes("--help") || rawArgs.includes("-h")
+
+if (cmdName && cmdName in subCommands && !isHelp) {
   runCommand(subCommands[cmdName]!, { rawArgs: rawArgs.slice(1) })
     .then(({ result }) => {
       if (typeof result === "number" && result !== 0) process.exit(result)
