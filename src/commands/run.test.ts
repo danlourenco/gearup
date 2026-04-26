@@ -11,6 +11,7 @@ mock.module("@clack/prompts", () => ({
   outro: mock<(label: string) => void>(() => undefined),
   cancel: mock<(label: string) => void>(() => undefined),
   note: mock<(message: string, title?: string) => void>(() => undefined),
+  log: { error: mock<(label: string) => void>(() => undefined) },
   spinner: () => spinnerMock,
   confirm: mock(async () => true),
   isCancel: () => false,
@@ -66,7 +67,7 @@ describe("run command (Clack UX)", () => {
     }
   })
 
-  it("emits cancel + note + outro on failure; returns 1", async () => {
+  it("logs error + note + outro on failure; returns 1", async () => {
     const fixturePath = path.join(fixtures, "__clack-run-fail.jsonc")
     await fs.writeFile(
       fixturePath,
@@ -88,7 +89,7 @@ describe("run command (Clack UX)", () => {
         rawArgs: ["--config", fixturePath],
       })
       expect(result).toBe(1)
-      expect(clack.cancel).toHaveBeenCalled()
+      expect(clack.log.error).toHaveBeenCalled()
       expect(clack.outro).toHaveBeenCalled()
     } finally {
       await fs.unlink(fixturePath).catch(() => undefined)

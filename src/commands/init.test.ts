@@ -14,9 +14,15 @@ import fs from "node:fs/promises"
 import { initCommand } from "./init"
 
 const tmpStateDir = path.join("/tmp", `gearup-init-cmd-test-${process.pid}`)
+const originalXdgConfig = process.env.XDG_CONFIG_HOME
 
 afterEach(async () => {
   await fs.rm(tmpStateDir, { recursive: true, force: true })
+  if (originalXdgConfig === undefined) {
+    delete process.env.XDG_CONFIG_HOME
+  } else {
+    process.env.XDG_CONFIG_HOME = originalXdgConfig
+  }
 })
 
 describe("init command", () => {

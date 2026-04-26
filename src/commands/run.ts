@@ -35,7 +35,7 @@ export const runCommand = defineCommand({
       const report = await runInstall(config, ctx, reporter)
 
       if (!report.ok) {
-        clack.cancel(`Failed at step: ${report.failedAt}`)
+        clack.log.error(`Failed at step: ${report.failedAt}`)
         clack.note(report.error, "error")
         clack.outro(`Log: ${logger.path()}`)
         return 1

@@ -22,7 +22,8 @@ async function main() {
   for (const { target, outdir } of TARGETS) {
     console.log(`Building ${target}...`)
     await fs.mkdir(outdir, { recursive: true })
-    const outfile = path.join(outdir, "gearup")
+    const platform = target.replace(/^bun-/, "")  // e.g., "darwin-arm64"
+    const outfile = path.join(outdir, `gearup-${platform}`)
 
     // --external=giget: c12 depends on giget which pulls in node-fetch-native/proxy;
     // that CJS shim has no "fetch" named export, causing bun bundler to error.
@@ -30,7 +31,7 @@ async function main() {
     await $`bun build src/cli.ts --compile --target=${target} --outfile=${outfile} --external=giget`
 
     const checksum = await sha256(outfile)
-    await fs.writeFile(`${outfile}.sha256`, `${checksum}  gearup\n`)
+    await fs.writeFile(`${outfile}.sha256`, `${checksum}  gearup-${platform}\n`)
 
     const stat = await fs.stat(outfile)
     console.log(`  ${outfile} (${(stat.size / 1024 / 1024).toFixed(1)} MB, sha256: ${checksum.slice(0, 16)}...)`)
