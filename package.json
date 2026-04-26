@@ -12,11 +12,12 @@
     "build": "bun build src/cli.ts --compile --outfile=bin/gearup"
   },
   "dependencies": {
-    "citty": "^0.1.6",
+    "@clack/prompts": "^0.7.0",
     "c12": "^2.0.0",
+    "citty": "^0.1.6",
     "confbox": "^0.1.7",
-    "valibot": "^0.40.0",
-    "execa": "^9.5.0"
+    "execa": "^9.5.0",
+    "valibot": "^0.40.0"
   },
   "devDependencies": {
     "typescript": "^5.6.0",
