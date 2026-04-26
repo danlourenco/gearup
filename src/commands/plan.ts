@@ -1,4 +1,5 @@
 import { defineCommand } from "citty"
+import * as clack from "@clack/prompts"
 import { loadConfig } from "../config/load"
 import { runPlan, type StepReport } from "../runner/run"
 import { makeContext } from "../context"
@@ -19,27 +20,28 @@ export const planCommand = defineCommand({
   async run({ args }) {
     const config = await loadConfig(args.config)
     const ctx = makeContext({ exec: new ExecaExec() })
+
+    clack.intro(`gearup plan · ${config.name}`)
     const report = await runPlan(config, ctx)
 
-    printReport(config.name, report.steps)
+    const lines = report.steps.map((s, i) => {
+      const idx = `[${i + 1}/${report.steps.length}]`
+      const marker = s.status === "installed" ? "✓" : "·"
+      const label = s.status === "installed" ? "already installed" : "would install"
+      return `${marker} ${idx} ${s.name}  ${label}`
+    })
+    if (lines.length > 0) {
+      clack.note(lines.join("\n"), `${report.steps.length} step${report.steps.length === 1 ? "" : "s"}`)
+    }
+
+    const wouldInstall = report.steps.filter((s) => s.status === "would-install").length
+    if (wouldInstall === 0) {
+      clack.outro("Machine is up to date")
+    } else {
+      clack.outro(`${wouldInstall} step${wouldInstall === 1 ? "" : "s"} would install`)
+    }
     return report.exitCode
   },
 })
 
-function printReport(configName: string, steps: StepReport[]): void {
-  console.log(`CONFIG: ${configName}  (${steps.length} step${steps.length === 1 ? "" : "s"})`)
-  console.log("")
-  steps.forEach((step, i) => {
-    const idx = `[${i + 1}/${steps.length}]`
-    const status = step.status === "installed" ? "✓" : "·"
-    const label = step.status === "installed" ? "already installed" : "would install"
-    console.log(`  ${status} ${idx} ${step.name}  ${label}`)
-  })
-  console.log("")
-  const wouldInstall = steps.filter((s) => s.status === "would-install").length
-  if (wouldInstall === 0) {
-    console.log("Machine is up to date.")
-  } else {
-    console.log(`${wouldInstall} step${wouldInstall === 1 ? "" : "s"} would install.`)
-  }
-}
+export type { StepReport }
