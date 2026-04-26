@@ -101,6 +101,8 @@ export async function runInstall(config: Config, ctx: Context): Promise<RunRepor
   const regSteps = allSteps.filter((s) => s.requires_elevation !== true)
 
   // Pre-check: any elevation step that needs install?
+  // Deliberate: if a step has requires_elevation: true but config.elevation is
+  // absent, no banner is shown — matches Go's runner.go runLive behavior.
   let needsElevation = false
   if (elevSteps.length > 0 && config.elevation) {
     for (const step of elevSteps) {
