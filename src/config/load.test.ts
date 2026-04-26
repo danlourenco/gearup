@@ -1,6 +1,7 @@
 import { describe, it, expect } from "bun:test"
 import { loadConfig } from "./load"
 import path from "node:path"
+import fs from "node:fs/promises"
 
 const fixtures = path.resolve(import.meta.dir, "../../tests/fixtures")
 
@@ -37,7 +38,6 @@ describe("loadConfig", () => {
 
   it("throws with schema-validation detail when the file is invalid", async () => {
     // Write an invalid fixture inline for this test
-    const fs = await import("node:fs/promises")
     const tmpPath = path.join(fixtures, "__invalid-tmp.jsonc")
     await fs.writeFile(tmpPath, JSON.stringify({ version: 2, name: "bad" }))
     try {

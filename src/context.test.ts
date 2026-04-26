@@ -8,7 +8,7 @@ describe("makeContext", () => {
     const ctx = makeContext({ exec })
 
     expect(ctx.cwd).toBe(process.cwd())
-    expect(ctx.env).toBe(process.env as Record<string, string>)
+    expect(ctx.env).toBe(process.env as Record<string, string | undefined>)
     expect(ctx.exec).toBe(exec)
   })
 

@@ -3,9 +3,8 @@ import type { Context } from "../context"
 import type { CheckResult } from "./types"
 
 function expandHome(p: string, home: string): string {
-  if (p.startsWith("~/")) {
-    return `${home}/${p.slice(2)}`
-  }
+  if (p === "~") return home
+  if (p.startsWith("~/")) return `${home}/${p.slice(2)}`
   return p
 }
 

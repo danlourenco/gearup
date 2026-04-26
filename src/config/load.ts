@@ -23,7 +23,7 @@ export async function loadConfig(configPath: string): Promise<Config> {
   } catch (err) {
     if (err instanceof v.ValiError) {
       const issues = err.issues
-        .map((i) => `  - ${i.path?.map((p: { key: unknown }) => p.key).join(".") ?? "<root>"}: ${i.message}`)
+        .map((i) => `  - ${i.path?.map((p: v.IssuePathItem) => p.key).join(".") ?? "<root>"}: ${i.message}`)
         .join("\n")
       throw new Error(`config ${abs} failed schema validation:\n${issues}`)
     }
