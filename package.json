@@ -9,7 +9,8 @@
     "dev": "bun run src/cli.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "build": "bun build src/cli.ts --compile --outfile=bin/gearup"
+    "build": "bun build src/cli.ts --compile --outfile=bin/gearup",
+    "build:release": "bun run scripts/build-release.ts"
   },
   "dependencies": {
     "@clack/prompts": "^0.7.0",
