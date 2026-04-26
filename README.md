@@ -36,7 +36,7 @@ go build -o gearup ./cmd/gearup
 ./gearup run
 
 # Or specify one directly
-./gearup run --config ./examples/configs/backend.yaml
+./gearup run --config ./configs/backend.jsonc
 ```
 
 On first run you'll see an interactive picker listing discovered configs. Select one, and gearup walks through each step with an animated progress indicator:
@@ -57,68 +57,75 @@ Log: ~/.local/state/gearup/logs/20260415-211527-Backend.log
 
 ## How it works
 
-Every gearup YAML file has the same shape — there is no distinction between an "entry point" and a "reusable component." A config can declare steps directly, extend other configs by name, or both.
+Every gearup config file has the same shape — there is no distinction between an "entry point" and a "reusable component." A config can declare steps directly, extend other configs by path, or both.
 
-Composition is via `extends: [name, ...]`. The config file's own directory is always in the search path, so configs in the same directory can extend each other without any extra declaration.
+Composition is via `extends: [path, ...]`. Each path is resolved relative to the config file. Extensions are required for non-JS configs (`./base.jsonc`, `./jvm.yaml`, etc.). c12 also supports npm package names and `github:owner/repo` references for shared team configs.
 
 ```
 configs/
-├── backend.yaml       ← extends: [base, jvm, containers, aws-k8s, node]
-├── frontend.yaml      ← extends: [base, node]
-├── base.yaml          (Homebrew, Git, jq)
-├── jvm.yaml           (OpenJDK 21 + system symlink)
-├── containers.yaml    (Docker CLI, Compose plugin, Colima)
-├── aws-k8s.yaml       (AWS CLI, aws-iam-authenticator, kubectl)
-└── node.yaml          (nvm)
+├── backend.jsonc       ← extends: [./base.jsonc, ./jvm.jsonc, ./containers.jsonc, ./aws-k8s.jsonc, ./node.jsonc]
+├── frontend.jsonc      ← extends: [./base.jsonc, ./node.jsonc]
+├── base.jsonc          (Homebrew, Git, jq)
+├── jvm.jsonc           (OpenJDK 21 + system symlink)
+├── containers.jsonc    (Docker CLI, Compose plugin, Colima)
+├── aws-k8s.jsonc       (AWS CLI, aws-iam-authenticator, kubectl)
+└── node.jsonc          (nvm)
 ```
 
 ### Example config
 
-```yaml
-# configs/backend.yaml
-version: 1
-name: "Backend"
-description: "Full macOS developer toolchain for backend/infra work"
+```jsonc
+// configs/backend.jsonc
+{
+  "version": 1,
+  "name": "Backend",
+  "description": "Full macOS developer toolchain for backend/infra work",
 
-platform:
-  os: [darwin]
+  "platform": {
+    "os": ["darwin"]
+  },
 
-elevation:
-  message: "Some steps need admin permissions. Elevate now, then press Continue."
-  duration: 180s
+  "elevation": {
+    "message": "Some steps need admin permissions. Elevate now, then press Continue.",
+    "duration": "180s"
+  },
 
-extends:
-  - base
-  - jvm
-  - containers
-  - aws-k8s
-  - node
+  "extends": [
+    "./base.jsonc",
+    "./jvm.jsonc",
+    "./containers.jsonc",
+    "./aws-k8s.jsonc",
+    "./node.jsonc"
+  ]
+}
 ```
-
-No `sources:` declaration needed — configs in the same directory find each other automatically.
 
 ### Example reusable config
 
-```yaml
-# configs/base.yaml
-version: 1
-name: base
-description: "Homebrew + universal core CLI tools (git, jq)"
+```jsonc
+// configs/base.jsonc
+{
+  "version": 1,
+  "name": "base",
+  "description": "Homebrew + universal core CLI tools (git, jq)",
 
-steps:
-  - name: Homebrew
-    type: curl-pipe-sh
-    url: https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh
-    check: command -v brew
-
-  - name: Git
-    type: brew
-    formula: git
-    check: command -v git    # skip if git exists from any source
-
-  - name: jq
-    type: brew
-    formula: jq
+  "steps": {
+    "Homebrew": {
+      "type": "curl-pipe-sh",
+      "url": "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh",
+      "check": "command -v brew"
+    },
+    "Git": {
+      "type": "brew",
+      "formula": "git",
+      "check": "command -v git"
+    },
+    "jq": {
+      "type": "brew",
+      "formula": "jq"
+    }
+  }
+}
 ```
 
 ## Step types
@@ -210,25 +217,20 @@ Check and install command output is captured here. The terminal stays clean — 
 Start by running `gearup init` to see the default configs at `~/.config/gearup/configs/`. Edit them directly, or use them as templates:
 
 1. Create a directory for your configs.
-2. Write one YAML file per concern (base tools, language runtimes, cloud tooling, etc.).
-3. Create an entry-point config that lists `extends: [name, ...]` (names of files to include, without `.yaml`).
-4. Run `gearup run --config <your-config.yaml>`.
-
-Configs can live anywhere — a local directory, a shared team repo, or all in the same folder. If the extended configs are in a different location, declare it with `sources`:
-
-```yaml
-# my-team-config.yaml
-version: 1
-name: "My Team"
-sources:
-  - path: ./my-configs
-  - path: ~/src/shared-configs
-extends:
-  - base
-  - my-custom-stack
-```
-
-When configs are in the same directory, no `sources` declaration is needed.
+2. Write one config file per concern (base tools, language runtimes, cloud tooling, etc.) using JSONC, YAML, or TOML.
+3. Create an entry-point config that lists `extends:` with explicit paths and extensions:
+   ```jsonc
+   {
+     "version": 1,
+     "name": "Backend",
+     "extends": [
+       "./base.jsonc",
+       "./jvm.jsonc",
+       "github:my-team/configs/aws.yaml"
+     ]
+   }
+   ```
+4. Run `gearup run --config <your-config.jsonc>`.
 
 ## Building from source
 
