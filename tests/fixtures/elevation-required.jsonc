@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "name": "elevation-required",
+  "elevation": {
+    "message": "This run needs admin permissions for one step. Acquire them, then continue.",
+    "duration": "180s"
+  },
+  "steps": [
+    {
+      "type": "shell",
+      "name": "needs-admin",
+      "install": "true",
+      "check": "false",
+      "requires_elevation": true
+    }
+  ]
+}
