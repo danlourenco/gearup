@@ -23,13 +23,51 @@ jobs:
       - name: Test
         run: bun test
 
-      - name: Smoke test the compiled binary
+      - name: 'E2E: build, plan, install, idempotency'
         run: |
+          set -euo pipefail
+
           bun build src/cli.ts --compile --outfile=bin/gearup
           ./bin/gearup --help
-          ./bin/gearup plan --config tests/fixtures/single-brew.jsonc || EXIT=$?
-          # plan exits 0 or 10 — both are acceptable
-          if [ "${EXIT:-0}" != "0" ] && [ "${EXIT:-0}" != "10" ]; then
-            echo "unexpected exit code: $EXIT"
+
+          # Inline e2e fixture: one brew install + one shell step (with a
+          # check command that flips after the install runs).
+          MARKER=/tmp/gearup-e2e-marker
+          rm -f "$MARKER"
+          cat > /tmp/ci-e2e.jsonc <<EOF
+          {
+            "version": 1,
+            "name": "ci-e2e",
+            "steps": {
+              "hello": { "type": "brew", "formula": "hello" },
+              "marker": {
+                "type": "shell",
+                "check": "test -f $MARKER",
+                "install": "touch $MARKER"
+              }
+            }
+          }
+          EOF
+
+          # 1. plan against a fresh runner — expect exit 10 (steps pending).
+          EXIT=0
+          ./bin/gearup plan --config /tmp/ci-e2e.jsonc || EXIT=$?
+          if [ "$EXIT" != "10" ]; then
+            echo "expected plan exit 10 (steps pending), got $EXIT" >&2
+            exit 1
+          fi
+
+          # 2. run — performs real installs.
+          ./bin/gearup run --config /tmp/ci-e2e.jsonc
+
+          # 3. confirm side effects landed.
+          brew list --formula hello
+          test -f "$MARKER"
+
+          # 4. plan again — expect exit 0 (idempotent: machine up to date).
+          EXIT=0
+          ./bin/gearup plan --config /tmp/ci-e2e.jsonc || EXIT=$?
+          if [ "$EXIT" != "0" ]; then
+            echo "expected plan exit 0 (up to date), got $EXIT" >&2
             exit 1
           fi
